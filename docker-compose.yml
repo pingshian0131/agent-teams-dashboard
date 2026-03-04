@@ -1,0 +1,29 @@
+services:
+  backend:
+    build: .
+    command: npx tsx watch server/index.ts
+    ports:
+      - "3001:3001"
+    volumes:
+      - .:/app
+      - app_modules:/app/node_modules
+      - ${HOME}/.claude:/root/.claude:ro
+    environment:
+      - PORT=3001
+
+  frontend:
+    build: .
+    command: npx vite --host 0.0.0.0
+    ports:
+      - "5173:5173"
+    volumes:
+      - .:/app
+      - app_modules:/app/node_modules
+    environment:
+      - BACKEND_HOST=backend
+      - BACKEND_PORT=3001
+    depends_on:
+      - backend
+
+volumes:
+  app_modules:
