@@ -1,21 +1,51 @@
 # Agent Teams Dashboard
 
-即時監控 Claude Code agent teams 的 Web 儀表板。透過 WebSocket 串流更新，追蹤團隊協作、任務進度與 agent 活動狀態。
+即時監控 [Claude Code](https://claude.ai/code) agent teams 的 Web 儀表板。透過 WebSocket 串流更新，追蹤團隊協作、任務進度與 agent 活動狀態。
+
+[English](https://github.com/pingshian0131/agent-teams-dashboard/blob/main/README.md)
 
 ## 功能
 
-- 團隊總覽 — 所有活躍 agent teams 的即時狀態卡片
-- 看板式任務面板 — Pending / In Progress / Completed 三欄式任務追蹤
-- Agent 活動監控 — 即時顯示每個 agent 的訊息與工具使用紀錄
-- WebSocket 即時更新 — 檔案系統變更自動推送至瀏覽器
+- **雙側邊欄導航** — 三欄式佈局：TeamsPanel → AgentsPanel → MainPanel
+- **團隊總覽** — 即時狀態卡片，含 status dots、進度條、成員數
+- **Agent Sessions** — 按 agent 分組的 session 時間軸，可展開檢視
+- **看板式任務面板** — Pending / In Progress / Completed 三欄式任務追蹤
+- **Agent 活動監控** — 即時顯示每個 agent 的訊息與工具使用紀錄
+- **WebSocket 即時更新** — 檔案系統變更自動推送至瀏覽器
 
-## 安裝
+### 佈局
+
+```
+┌──────────────┬────────────────┬──────────────────────┐
+│ TeamsPanel   │ AgentsPanel    │ MainPanel            │
+│ (200px)      │ (260px)        │ (flex: 1)            │
+└──────────────┴────────────────┴──────────────────────┘
+```
+
+## Demo
+
+### 總覽 — 團隊狀態卡片
+![Overview](docs/demo-overview.png)
+
+### 任務面板 — 看板檢視
+![Task Board](docs/demo-taskboard.png)
+
+### Agent 面板 — 活動詳情
+![Agent Panel](docs/demo-agent-panel.png)
+
+## 快速開始
 
 ```bash
 npx agent-teams-dashboard
 ```
 
 開啟瀏覽器前往 `http://localhost:3001`。
+
+可用 `PORT` 環境變數更改埠號：
+
+```bash
+PORT=8080 npx agent-teams-dashboard
+```
 
 ## 從原始碼開發
 
@@ -66,6 +96,10 @@ npm run server
 ```
 
 伺服器會從 `dist/` 提供靜態檔案，API 與 WebSocket 在同一個 port（預設 3001，可用 `PORT` 環境變數覆蓋）。
+
+## 靈感來源
+
+靈感來自 [Claude Code Agent Teams Demo](https://youtu.be/Gmzh9HP7JGM?si=LDUFqPz0syBsWuta)
 
 ## 授權
 
