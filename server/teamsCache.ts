@@ -9,7 +9,7 @@ import type {
   TeamOverview,
   FullSnapshot,
   AgentLogEntry,
-} from '../src/types';
+} from '../src/types.js';
 
 const CLAUDE_DIR = join(homedir(), '.claude');
 const TEAMS_DIR = join(CLAUDE_DIR, 'teams');
@@ -22,6 +22,7 @@ const teams = new Map<string, TeamConfig>();
 const tasks = new Map<string, TeamTask[]>();
 const agentEntries = new Map<string, AgentLogEntry[]>();
 const agentOffsets = new Map<string, number>();
+const teamFileMtimes = new Map<string, number>(); // team name -> latest mtime (ms)
 
 export const onChange = new EventEmitter();
 
@@ -75,6 +76,15 @@ export async function refreshTeams(): Promise<void> {
       };
       teams.set(config.name, config);
       currentNames.add(config.name);
+
+      // Track config file mtime
+      const configStat = await safeFileStat(configPath);
+      if (configStat) {
+        const prev = teamFileMtimes.get(config.name) ?? 0;
+        if (configStat.mtimeMs > prev) {
+          teamFileMtimes.set(config.name, configStat.mtimeMs);
+        }
+      }
     } catch {
       // skip malformed config
     }
@@ -84,6 +94,7 @@ export async function refreshTeams(): Promise<void> {
   for (const name of teams.keys()) {
     if (!currentNames.has(name)) {
       teams.delete(name);
+      teamFileMtimes.delete(name);
     }
   }
 }
@@ -97,7 +108,8 @@ export async function refreshTasks(teamId: string): Promise<void> {
 
   for (const file of files) {
     if (!file.endsWith('.json')) continue;
-    const raw = await safeReadFile(join(taskDir, file));
+    const filePath = join(taskDir, file);
+    const raw = await safeReadFile(filePath);
     if (!raw) continue;
     try {
       const parsed = JSON.parse(raw);
@@ -111,6 +123,15 @@ export async function refreshTasks(teamId: string): Promise<void> {
         blockedBy: Array.isArray(parsed.blockedBy) ? parsed.blockedBy : [],
         owner: parsed.owner,
       });
+
+      // Track task file mtime for lastActivity
+      const taskStat = await safeFileStat(filePath);
+      if (taskStat) {
+        const prev = teamFileMtimes.get(teamId) ?? 0;
+        if (taskStat.mtimeMs > prev) {
+          teamFileMtimes.set(teamId, taskStat.mtimeMs);
+        }
+      }
     } catch {
       // skip malformed task
     }
@@ -246,13 +267,21 @@ function buildTeamOverview(teamName: string): TeamOverview {
     }
   }
 
-  // Find last activity timestamp
+  // Find last activity timestamp from agent JSONL entries
   let lastActivity = '';
   for (const member of config.members) {
     const entries = agentEntries.get(member.agentId) ?? agentEntries.get(member.agentId.split('@')[0]);
     if (entries && entries.length > 0) {
       const ts = entries[entries.length - 1].timestamp;
       if (ts > lastActivity) lastActivity = ts;
+    }
+  }
+
+  // Fallback: use file modification times (config + task files)
+  if (!lastActivity) {
+    const mtime = teamFileMtimes.get(teamName);
+    if (mtime) {
+      lastActivity = new Date(mtime).toISOString();
     }
   }
 

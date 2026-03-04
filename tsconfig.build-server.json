@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.node.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "server-dist",
+    "declaration": false,
+    "sourceMap": false
+  },
+  "include": ["server", "src/types.ts"]
+}

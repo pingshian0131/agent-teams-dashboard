@@ -8,7 +8,7 @@ import { startWatching } from './teamsWatcher.js';
 import * as cache from './teamsCache.js';
 
 const PORT = Number(process.env.PORT ?? 3001);
-const DIST_DIR = join(import.meta.dirname, '..', 'dist');
+const DIST_DIR = process.env.DIST_DIR ?? join(import.meta.dirname, '..', 'dist');
 
 const MIME_TYPES: Record<string, string> = {
   '.html': 'text/html',

@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { TeamOverview } from '../src/types.js';
 import * as cache from './teamsCache.js';
 
 function json(res: ServerResponse, data: unknown, status = 200): void {
@@ -37,7 +38,7 @@ export async function handleTeamsApi(
   if (tasksMatch) {
     const teamId = decodeURIComponent(tasksMatch[1]);
     const snapshot = cache.getSnapshot();
-    const team = snapshot.teams.find(t => t.config.name === teamId);
+    const team = snapshot.teams.find((t: TeamOverview) => t.config.name === teamId);
     if (!team) {
       notFound(res);
       return true;
@@ -51,7 +52,7 @@ export async function handleTeamsApi(
   if (teamMatch) {
     const teamId = decodeURIComponent(teamMatch[1]);
     const snapshot = cache.getSnapshot();
-    const team = snapshot.teams.find(t => t.config.name === teamId);
+    const team = snapshot.teams.find((t: TeamOverview) => t.config.name === teamId);
     if (!team) {
       notFound(res);
       return true;

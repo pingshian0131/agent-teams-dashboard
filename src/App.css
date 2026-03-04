@@ -332,6 +332,7 @@ body {
 .overview-card {
   background: var(--bg-card);
   border: 1px solid var(--border-primary);
+  border-left: 3px solid var(--text-muted);
   border-radius: var(--radius-md);
   padding: 16px;
   transition: all var(--transition-fast);
@@ -339,13 +340,35 @@ body {
 
 .overview-card:hover {
   border-color: var(--accent-cyan);
+  border-left-color: inherit;
   background: var(--bg-hover);
+}
+
+/* Status-based card left border */
+.overview-card--active {
+  border-left-color: var(--accent-green);
+}
+
+.overview-card--idle {
+  border-left-color: var(--accent-yellow);
+}
+
+.overview-card--done {
+  border-left-color: var(--accent-cyan);
+}
+
+.overview-card--inactive {
+  border-left-color: var(--text-muted);
 }
 
 .overview-card__header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 4px;
+}
+
+.overview-card__meta {
   margin-bottom: 12px;
 }
 
@@ -373,6 +396,22 @@ body {
 
 .overview-card__footer {
   text-align: right;
+}
+
+/* Pulsing dot for active teams */
+.pulse-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-green);
+  animation: pulse 2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(0, 255, 136, 0.4); }
+  50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(0, 255, 136, 0); }
 }
 
 /* === Task Board === */
@@ -493,6 +532,11 @@ body {
 .status-badge--idle {
   background: rgba(255, 215, 0, 0.15);
   color: var(--accent-yellow);
+}
+
+.status-badge--done {
+  background: rgba(0, 212, 255, 0.15);
+  color: var(--accent-cyan);
 }
 
 .status-badge--unknown {

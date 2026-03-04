@@ -1,13 +1,43 @@
 {
   "name": "agent-teams-dashboard",
-  "private": true,
   "version": "0.1.0",
+  "description": "Real-time monitoring dashboard for Claude Code agent teams",
   "type": "module",
+  "author": "pingshian0131",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pingshian0131/agent-teams-dashboard.git"
+  },
+  "homepage": "https://github.com/pingshian0131/agent-teams-dashboard",
+  "keywords": [
+    "claude-code",
+    "agent",
+    "teams",
+    "dashboard",
+    "monitoring",
+    "websocket"
+  ],
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "bin": {
+    "agent-teams-dashboard": "bin/agent-teams-dashboard.js"
+  },
+  "files": [
+    "dist/",
+    "server-dist/",
+    "bin/",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:server": "tsc -p tsconfig.build-server.json",
     "server": "tsx server/index.ts",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "prepublishOnly": "npm run build && npm run build:server"
   },
   "dependencies": {
     "react": "^19",

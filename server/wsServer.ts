@@ -1,7 +1,7 @@
 import type { Server } from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
 import * as cache from './teamsCache.js';
-import type { WsEvent } from '../src/types';
+import type { WsEvent } from '../src/types.js';
 
 const HEARTBEAT_INTERVAL = 30_000;
 const PONG_TIMEOUT = 10_000;
