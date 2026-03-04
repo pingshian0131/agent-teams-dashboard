@@ -17,6 +17,16 @@
 
 ## 快速開始
 
+### Docker（推薦）
+
+```bash
+docker compose up
+```
+
+開啟瀏覽器前往 `http://localhost:5173`。修改程式碼會自動 hot reload。
+
+### 手動啟動
+
 ```bash
 npm install
 
@@ -37,6 +47,7 @@ npm run dev
 | `npm run server` | 後端伺服器（port 3001） |
 | `npm run build` | 建置前端至 `dist/` |
 | `npm run preview` | 預覽正式建置結果 |
+| `docker compose up` | Docker 一鍵啟動前後端 |
 
 ## 正式環境部署
 

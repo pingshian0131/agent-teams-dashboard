@@ -9,13 +9,19 @@ Agent Teams Dashboard — 即時監控 Claude Code agent teams 的 Web 儀表板
 ## 開發指令
 
 ```bash
+# Docker（推薦，一鍵啟動前後端）
+docker compose up
+
+# 或手動啟動
 npm run dev        # 前端開發伺服器（Vite，localhost:5173，代理 API/WS 至 :3001）
 npm run server     # 後端伺服器（localhost:3001）
 npm run build      # 正式環境前端建置 → dist/
 npm run preview    # 預覽正式建置結果
 ```
 
-本地開發需同時執行 `npm run server` 和 `npm run dev`。Vite 開發伺服器會將 `/api/*` 和 `/ws/*` 代理至後端。
+**Docker 開發模式：** `docker compose up` 同時啟動 backend（:3001）和 frontend（:5173）。Source code bind mount 支援 hot reload，後端使用 `tsx watch` 自動重啟。`~/.claude/` 以 read-only 掛入 backend container。
+
+**手動模式：** 需同時執行 `npm run server` 和 `npm run dev`。Vite 開發伺服器會將 `/api/*` 和 `/ws/*` 代理至後端。
 
 ## 架構
 
@@ -47,9 +53,17 @@ npm run preview    # 預覽正式建置結果
 ### 共用型別（`src/types.ts`）
 前後端共用型別定義。主要型別：`TeamConfig`、`TeamMember`、`TeamTask`、`TeamOverview`、`FullSnapshot`、`WsEvent`（WebSocket 訊息的 discriminated union）。
 
+### Docker 開發環境
+
+- `Dockerfile` — Node.js 22 Alpine，含 `docker-entrypoint.sh` 自動安裝依賴
+- `docker-compose.yml` — backend + frontend 兩個 service，共用 `app_modules` named volume 避免 node_modules 被 source mount 覆蓋
+- `vite.config.ts` — proxy target 透過 `BACKEND_HOST` / `BACKEND_PORT` 環境變數設定（預設 `localhost:3001`，Docker 內自動指向 `backend:3001`）
+
 ## 環境變數
 
 - `PORT` — 後端伺服器埠號（預設：`3001`）
+- `BACKEND_HOST` — Vite proxy 的後端主機名（預設：`localhost`，Docker 內為 `backend`）
+- `BACKEND_PORT` — Vite proxy 的後端埠號（預設：`3001`）
 
 ## 正式環境部署
 
