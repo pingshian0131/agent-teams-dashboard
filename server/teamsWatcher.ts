@@ -10,11 +10,13 @@ const TASKS_DIR = join(CLAUDE_DIR, 'tasks');
 const DEBOUNCE_MS = 200;
 const JSONL_POLL_MS = 2000;
 const DIR_CHECK_MS = 5000;
+const FULL_REFRESH_MS = 5000; // Fallback polling for environments where fs.watch doesn't work (e.g. Docker bind mounts)
 
 let tasksWatcher: ReturnType<typeof watch> | null = null;
 let teamsWatcher: ReturnType<typeof watch> | null = null;
 let jsonlTimer: ReturnType<typeof setInterval> | null = null;
 let dirCheckTimer: ReturnType<typeof setInterval> | null = null;
+let fullRefreshTimer: ReturnType<typeof setInterval> | null = null;
 
 // --- Debounce helper ---
 
@@ -103,12 +105,34 @@ function startDirCheckPoller(): void {
   }, DIR_CHECK_MS);
 }
 
+// --- Full refresh poller (fallback for Docker / environments without fs.watch) ---
+
+function startFullRefreshPoller(): void {
+  let lastSnapshot = '';
+  fullRefreshTimer = setInterval(async () => {
+    await cache.refreshTeams();
+    for (const team of cache.getSnapshot().teams) {
+      await cache.refreshTasks(team.config.name);
+    }
+    const snapshot = JSON.stringify(cache.getSnapshot());
+    if (snapshot !== lastSnapshot) {
+      lastSnapshot = snapshot;
+      cache.onChange.emit('change');
+    }
+  }, FULL_REFRESH_MS);
+}
+
 // --- Agent JSONL poller ---
 
 function startJsonlPoller(): void {
+  let lastSnapshot = '';
   jsonlTimer = setInterval(async () => {
     await cache.scanAgentJsonl();
-    cache.onChange.emit('change');
+    const snapshot = JSON.stringify(cache.getSnapshot());
+    if (snapshot !== lastSnapshot) {
+      lastSnapshot = snapshot;
+      cache.onChange.emit('change');
+    }
   }, JSONL_POLL_MS);
 }
 
@@ -118,6 +142,7 @@ export function startWatching(): void {
   startTasksWatcher();
   startTeamsWatcher();
   startJsonlPoller();
+  startFullRefreshPoller();
 
   // If either dir doesn't exist yet, poll for them
   if (!tasksWatcher || !teamsWatcher) {
@@ -137,5 +162,9 @@ export function stopWatching(): void {
   if (dirCheckTimer) {
     clearInterval(dirCheckTimer);
     dirCheckTimer = null;
+  }
+  if (fullRefreshTimer) {
+    clearInterval(fullRefreshTimer);
+    fullRefreshTimer = null;
   }
 }

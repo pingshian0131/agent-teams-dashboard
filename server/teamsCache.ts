@@ -9,6 +9,7 @@ import type {
   TeamOverview,
   FullSnapshot,
   AgentLogEntry,
+  AgentSession,
 } from '../src/types.js';
 
 const CLAUDE_DIR = join(homedir(), '.claude');
@@ -321,6 +322,46 @@ export function getSnapshot(): FullSnapshot {
 
 export function getAgentActivity(agentId: string): AgentLogEntry[] {
   return agentEntries.get(agentId) ?? [];
+}
+
+export function getAgentSessions(agentId: string): AgentSession[] {
+  const entries = agentEntries.get(agentId);
+  if (!entries || entries.length === 0) return [];
+
+  const sessionMap = new Map<string, { entries: AgentLogEntry[] }>();
+  for (const entry of entries) {
+    const sid = entry.sessionId || 'unknown';
+    let group = sessionMap.get(sid);
+    if (!group) {
+      group = { entries: [] };
+      sessionMap.set(sid, group);
+    }
+    group.entries.push(entry);
+  }
+
+  const sessions: AgentSession[] = [];
+  for (const [sessionId, group] of sessionMap) {
+    const first = group.entries[0];
+    const last = group.entries[group.entries.length - 1];
+    sessions.push({
+      sessionId,
+      agentId,
+      slug: last.slug,
+      entryCount: group.entries.length,
+      firstTimestamp: first.timestamp,
+      lastTimestamp: last.timestamp,
+    });
+  }
+
+  // Sort by lastTimestamp descending (most recent first)
+  sessions.sort((a, b) => (b.lastTimestamp > a.lastTimestamp ? 1 : -1));
+  return sessions;
+}
+
+export function getSessionEntries(agentId: string, sessionId: string): AgentLogEntry[] {
+  const entries = agentEntries.get(agentId);
+  if (!entries) return [];
+  return entries.filter(e => (e.sessionId || 'unknown') === sessionId);
 }
 
 // --- Full refresh ---

@@ -1,0 +1,182 @@
+import { useState, useEffect } from 'react';
+import type { TeamOverview, ViewSelection, AgentLogEntry } from '../types';
+
+interface AgentsPanelProps {
+  team: TeamOverview | null;
+  selection: ViewSelection;
+  agentActivity: Map<string, AgentLogEntry[]>;
+  onSelect: (sel: ViewSelection) => void;
+}
+
+interface AgentSession {
+  sessionId: string;
+  firstSeen: string;
+  lastSeen: string;
+  entryCount: number;
+}
+
+function getAgentSessions(entries: AgentLogEntry[]): AgentSession[] {
+  const map = new Map<string, AgentSession>();
+  for (const e of entries) {
+    const existing = map.get(e.sessionId);
+    if (existing) {
+      if (e.timestamp < existing.firstSeen) existing.firstSeen = e.timestamp;
+      if (e.timestamp > existing.lastSeen) existing.lastSeen = e.timestamp;
+      existing.entryCount++;
+    } else {
+      map.set(e.sessionId, {
+        sessionId: e.sessionId,
+        firstSeen: e.timestamp,
+        lastSeen: e.timestamp,
+        entryCount: 1,
+      });
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => b.lastSeen.localeCompare(a.lastSeen));
+}
+
+function formatTime(ts: string): string {
+  return new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+}
+
+function timeAgo(ts: string): string {
+  const diff = Date.now() - new Date(ts).getTime();
+  if (diff < 60_000) return 'just now';
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+  return `${Math.floor(diff / 3_600_000)}h ago`;
+}
+
+type AgentStatus = 'active' | 'idle' | 'unknown';
+
+function getAgentStatus(entries: AgentLogEntry[]): AgentStatus {
+  if (entries.length === 0) return 'unknown';
+  const last = entries[entries.length - 1];
+  const elapsed = Date.now() - new Date(last.timestamp).getTime();
+  if (elapsed < 60_000) return 'active';
+  return 'idle';
+}
+
+const agentStatusColors: Record<AgentStatus, string> = {
+  active: 'var(--accent-green)',
+  idle: 'var(--accent-yellow)',
+  unknown: 'var(--text-muted)',
+};
+
+export default function AgentsPanel({ team, selection, agentActivity, onSelect }: AgentsPanelProps) {
+  const [expandedAgents, setExpandedAgents] = useState<Set<string>>(new Set());
+
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 10_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const toggleAgent = (agentId: string) => {
+    setExpandedAgents((prev) => {
+      const next = new Set(prev);
+      if (next.has(agentId)) next.delete(agentId);
+      else next.add(agentId);
+      return next;
+    });
+  };
+
+  if (!team) {
+    return (
+      <aside className="agents-panel">
+        <div className="agents-panel__header">
+          <h2 className="agents-panel__title">Agents</h2>
+        </div>
+        <div className="agents-panel__empty">
+          <span className="text-muted text-xs">Select a team</span>
+        </div>
+      </aside>
+    );
+  }
+
+  const selectedAgentId = selection.view === 'agent' ? selection.agentId : null;
+  const isTasksView = selection.view === 'tasks' && selection.teamName === team.config.name;
+  const { taskStats } = team;
+
+  return (
+    <aside className="agents-panel">
+      <div className="agents-panel__header">
+        <h2 className="agents-panel__title truncate">{team.config.name}</h2>
+        <div className="agents-panel__task-summary text-xs text-muted">
+          {taskStats.completed}/{taskStats.total} tasks
+        </div>
+      </div>
+
+      <div className="agents-panel__actions">
+        <button
+          className={`agents-panel__tasks-btn ${isTasksView ? 'agents-panel__tasks-btn--active' : ''}`}
+          onClick={() => onSelect({ view: 'tasks', teamName: team.config.name })}
+        >
+          ☰ Task Board
+        </button>
+      </div>
+
+      <div className="agents-panel__list">
+        {team.config.members.map((member) => {
+          const agentSlug = team.agentSlugs[member.agentId] ?? member.name;
+          const entries = agentActivity.get(member.agentId) ?? [];
+          const status = getAgentStatus(entries);
+          const isSelected = selectedAgentId === member.agentId;
+          const isExpanded = expandedAgents.has(member.agentId);
+          const sessions = isExpanded ? getAgentSessions(entries) : [];
+          const lastEntry = entries[entries.length - 1];
+
+          return (
+            <div key={member.agentId} className="agents-panel__agent">
+              <button
+                className={`agents-panel__agent-btn ${isSelected ? 'agents-panel__agent-btn--active' : ''}`}
+                onClick={() =>
+                  onSelect({
+                    view: 'agent',
+                    agentId: member.agentId,
+                    agentSlug,
+                    teamName: team.config.name,
+                  })
+                }
+              >
+                <span className="agents-panel__agent-dot" style={{ color: agentStatusColors[status] }}>
+                  ●
+                </span>
+                <span className="agents-panel__agent-name truncate">{member.name}</span>
+                <span className="agents-panel__agent-type text-xs text-muted">{member.agentType}</span>
+              </button>
+
+              <div className="agents-panel__agent-meta text-xs text-muted">
+                {lastEntry && <span>{timeAgo(lastEntry.timestamp)}</span>}
+                {entries.length > 0 && (
+                  <button
+                    className="agents-panel__session-toggle"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleAgent(member.agentId);
+                    }}
+                  >
+                    {isExpanded ? '▾' : '▸'} sessions
+                  </button>
+                )}
+              </div>
+
+              {isExpanded && sessions.length > 0 && (
+                <div className="agents-panel__sessions">
+                  {sessions.map((s) => (
+                    <div key={s.sessionId} className="agents-panel__session">
+                      <span className="agents-panel__session-id">{s.sessionId.slice(0, 8)}</span>
+                      <span className="agents-panel__session-time">
+                        {formatTime(s.firstSeen)}–{formatTime(s.lastSeen)}
+                      </span>
+                      <span className="agents-panel__session-count">{s.entryCount}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </aside>
+  );
+}

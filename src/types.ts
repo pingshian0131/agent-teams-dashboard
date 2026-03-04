@@ -41,6 +41,16 @@ export type MessageContent =
   | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
   | { type: 'tool_result'; tool_use_id: string; content: string; is_error?: boolean };
 
+// Agent Sessions
+export interface AgentSession {
+  sessionId: string;
+  agentId: string;
+  slug: string;
+  entryCount: number;
+  firstTimestamp: string;
+  lastTimestamp: string;
+}
+
 // Aggregated types
 export interface TeamOverview {
   config: TeamConfig;

@@ -61,6 +61,25 @@ export async function handleTeamsApi(
     return true;
   }
 
+  // GET /api/agents/:agentId/sessions/:sessionId
+  const sessionDetailMatch = path.match(/^\/api\/agents\/([^/]+)\/sessions\/([^/]+)$/);
+  if (sessionDetailMatch) {
+    const agentId = decodeURIComponent(sessionDetailMatch[1]);
+    const sessionId = decodeURIComponent(sessionDetailMatch[2]);
+    const entries = cache.getSessionEntries(agentId, sessionId);
+    json(res, entries);
+    return true;
+  }
+
+  // GET /api/agents/:agentId/sessions
+  const sessionsMatch = path.match(/^\/api\/agents\/([^/]+)\/sessions$/);
+  if (sessionsMatch) {
+    const agentId = decodeURIComponent(sessionsMatch[1]);
+    const sessions = cache.getAgentSessions(agentId);
+    json(res, sessions);
+    return true;
+  }
+
   // GET /api/agents/:agentId/activity
   const agentMatch = path.match(/^\/api\/agents\/([^/]+)\/activity$/);
   if (agentMatch) {

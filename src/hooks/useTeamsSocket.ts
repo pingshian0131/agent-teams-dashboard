@@ -7,6 +7,7 @@ export function useTeamsSocket() {
   const [snapshot, setSnapshot] = useState<FullSnapshot | null>(null);
   const [connected, setConnected] = useState(false);
   const [agentActivity, setAgentActivity] = useState<Map<string, AgentLogEntry[]>>(new Map<string, AgentLogEntry[]>());
+  const [lastUpdated, setLastUpdated] = useState<number | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -28,6 +29,8 @@ export function useTeamsSocket() {
     ws.onmessage = (event) => {
       try {
         const msg: WsEvent = JSON.parse(event.data);
+
+        setLastUpdated(Date.now());
 
         switch (msg.type) {
           case 'snapshot':
@@ -104,5 +107,5 @@ export function useTeamsSocket() {
     };
   }, [connect]);
 
-  return { snapshot, connected, agentActivity };
+  return { snapshot, connected, agentActivity, lastUpdated };
 }

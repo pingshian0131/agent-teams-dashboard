@@ -6,10 +6,21 @@ Real-time monitoring dashboard for [Claude Code](https://claude.ai/code) agent t
 
 ## Features
 
-- **Team Overview** — Live status cards for all active agent teams
+- **Dual-Sidebar Navigation** — Three-panel layout: TeamsPanel → AgentsPanel → MainPanel
+- **Team Overview** — Live status cards with status dots, progress bars, and member counts
+- **Agent Sessions** — Per-agent session grouping with expandable timeline
 - **Kanban Task Board** — Pending / In Progress / Completed columns
 - **Agent Activity Monitor** — Real-time messages and tool usage per agent
 - **WebSocket Streaming** — File system changes pushed to browser instantly
+
+### Layout
+
+```
+┌──────────────┬────────────────┬──────────────────────┐
+│ TeamsPanel   │ AgentsPanel    │ MainPanel            │
+│ (200px)      │ (260px)        │ (flex: 1)            │
+└──────────────┴────────────────┴──────────────────────┘
+```
 
 ## Quick Start
 
