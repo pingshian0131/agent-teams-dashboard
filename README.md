@@ -22,6 +22,17 @@ Real-time monitoring dashboard for [Claude Code](https://claude.ai/code) agent t
 └──────────────┴────────────────┴──────────────────────┘
 ```
 
+## Demo
+
+### Overview — Teams & Status Cards
+![Overview](docs/demo-overview.png)
+
+### Task Board — Kanban View
+![Task Board](docs/demo-taskboard.png)
+
+### Agent Panel — Activity Detail
+![Agent Panel](docs/demo-agent-panel.png)
+
 ## Quick Start
 
 ```bash
@@ -85,6 +96,10 @@ npm run server
 ```
 
 The server serves static files from `dist/` and provides API/WebSocket endpoints on the same port (default 3001).
+
+## Inspiration
+
+Inspired by [Claude Code Agent Teams Demo](https://youtu.be/Gmzh9HP7JGM?si=LDUFqPz0syBsWuta)
 
 ## License
 
