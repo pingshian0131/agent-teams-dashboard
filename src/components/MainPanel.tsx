@@ -12,7 +12,7 @@ interface MainPanelProps {
 }
 
 export default function MainPanel({ selection, snapshot, agentActivity, onSelect }: MainPanelProps) {
-  if (!snapshot || snapshot.teams.length === 0) {
+  if (!snapshot) {
     return (
       <main className="main-panel">
         <EmptyState />
@@ -49,6 +49,9 @@ export default function MainPanel({ selection, snapshot, agentActivity, onSelect
         if (!team) return <EmptyState />;
         return <TaskBoard tasks={team.tasks} teamName={selection.teamName} />;
       }
+
+      case 'project':
+        return <EmptyState />;
 
       default:
         return <EmptyState />;

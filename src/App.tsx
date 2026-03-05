@@ -50,7 +50,7 @@ export default function App() {
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>('teams');
 
-  const panel1 = useResizable(200, 120, 400);
+  const panel1 = useResizable(260, 120, 400);
   const panel2 = useResizable(260, 160, 500);
 
   const handleSelect = useCallback((sel: ViewSelection) => {

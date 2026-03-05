@@ -1,4 +1,4 @@
-import { readdir, readFile, stat } from 'node:fs/promises';
+import { readdir, readFile, stat, open } from 'node:fs/promises';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { EventEmitter } from 'node:events';
@@ -203,10 +203,20 @@ async function readNewEntries(filePath: string, isSessionFile: boolean, projectD
 
   if (fileSize <= currentOffset) return;
 
-  const raw = await safeReadFile(filePath);
-  if (!raw) return;
-
-  const newContent = raw.slice(currentOffset);
+  // Read only the new bytes from currentOffset to avoid byte/char offset mismatch
+  let newContent: string;
+  try {
+    const fh = await open(filePath, 'r');
+    try {
+      const buf = Buffer.alloc(fileSize - currentOffset);
+      await fh.read(buf, 0, buf.length, currentOffset);
+      newContent = buf.toString('utf-8');
+    } finally {
+      await fh.close();
+    }
+  } catch {
+    return;
+  }
   agentOffsets.set(filePath, fileSize);
 
   const lines = newContent.split('\n').filter(Boolean);
@@ -215,18 +225,32 @@ async function readNewEntries(filePath: string, isSessionFile: boolean, projectD
     try {
       const parsed = JSON.parse(line);
 
-      // For session files, only process entries that belong to a team
+      // For session files, process team entries AND regular conversation entries
       if (isSessionFile) {
         const teamName = parsed.teamName;
-        if (!teamName) continue;
-        const agentName = parsed.agentName || 'team-lead';
 
-        // Use team agentId format: name@team
-        const fullAgentId = `${agentName}@${teamName}`;
+        // Skip non-message entries (file-history-snapshot, progress, queue-operation, system)
+        if (!parsed.type || (parsed.type !== 'user' && parsed.type !== 'assistant')) continue;
+
+        let fullAgentId: string;
+        let slug: string;
+
+        if (teamName) {
+          // Team session: use name@team format
+          const agentName = parsed.agentName || 'team-lead';
+          fullAgentId = `${agentName}@${teamName}`;
+          slug = agentName;
+        } else {
+          // Regular conversation: use sessionId as agentId
+          const sessionId = parsed.sessionId ?? '';
+          if (!sessionId) continue;
+          fullAgentId = `session:${sessionId}`;
+          slug = parsed.slug || sessionId.slice(0, 8);
+        }
 
         const entry: AgentLogEntry = {
           agentId: fullAgentId,
-          slug: agentName,
+          slug,
           sessionId: parsed.sessionId ?? '',
           type: parsed.type ?? 'assistant',
           message: {
@@ -250,6 +274,13 @@ async function readNewEntries(filePath: string, isSessionFile: boolean, projectD
         arr.push(entry);
         if (arr.length > MAX_ENTRIES_PER_AGENT) {
           arr.splice(0, arr.length - MAX_ENTRIES_PER_AGENT);
+        }
+
+        // Update slug from assistant entries (they carry the slug)
+        if (parsed.slug && arr.length > 0) {
+          for (const e of arr) {
+            e.slug = parsed.slug;
+          }
         }
         continue;
       }
