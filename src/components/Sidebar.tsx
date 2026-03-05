@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { FullSnapshot, ViewSelection, TeamOverview, SidebarMode, AgentLogEntry } from '../types';
+import type { FullSnapshot, ViewSelection, TeamOverview, SidebarMode } from '../types';
 
 interface SidebarProps {
   snapshot: FullSnapshot | null;
@@ -11,7 +11,6 @@ interface SidebarProps {
   onSelect: (sel: ViewSelection) => void;
   sidebarMode: SidebarMode;
   onModeChange: (mode: SidebarMode) => void;
-  agentActivity: Map<string, AgentLogEntry[]>;
   style?: React.CSSProperties;
 }
 
@@ -78,7 +77,6 @@ export default function Sidebar({
   onSelect,
   sidebarMode,
   onModeChange,
-  agentActivity,
   style,
 }: SidebarProps) {
   const teams = snapshot?.teams ?? [];

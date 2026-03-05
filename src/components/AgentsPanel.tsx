@@ -1,41 +1,21 @@
 import { useState, useEffect } from 'react';
-import type { TeamOverview, ViewSelection, AgentLogEntry, SidebarMode, ProjectOverview } from '../types';
+import type { TeamOverview, ViewSelection, SidebarMode, ProjectOverview, AgentSession } from '../types';
 
 interface AgentsPanelProps {
   team: TeamOverview | null;
   selectedProject: ProjectOverview | null;
   selection: ViewSelection;
-  agentActivity: Map<string, AgentLogEntry[]>;
   onSelect: (sel: ViewSelection) => void;
+  onModeChange?: (mode: SidebarMode) => void;
   sidebarMode: SidebarMode;
   style?: React.CSSProperties;
 }
 
-interface AgentSession {
-  sessionId: string;
-  firstSeen: string;
-  lastSeen: string;
-  entryCount: number;
-}
-
-function getAgentSessions(entries: AgentLogEntry[]): AgentSession[] {
-  const map = new Map<string, AgentSession>();
-  for (const e of entries) {
-    const existing = map.get(e.sessionId);
-    if (existing) {
-      if (e.timestamp < existing.firstSeen) existing.firstSeen = e.timestamp;
-      if (e.timestamp > existing.lastSeen) existing.lastSeen = e.timestamp;
-      existing.entryCount++;
-    } else {
-      map.set(e.sessionId, {
-        sessionId: e.sessionId,
-        firstSeen: e.timestamp,
-        lastSeen: e.timestamp,
-        entryCount: 1,
-      });
-    }
-  }
-  return Array.from(map.values()).sort((a, b) => b.lastSeen.localeCompare(a.lastSeen));
+/** Extract team name from agentId like "name@team" or "team-lead@team" */
+function parseTeamFromAgentId(agentId: string): string | null {
+  const at = agentId.indexOf('@');
+  if (at > 0) return agentId.slice(at + 1);
+  return null;
 }
 
 function formatTime(ts: string): string {
@@ -60,10 +40,9 @@ function timeAgo(ts: string): string {
 
 type AgentStatus = 'active' | 'idle' | 'unknown';
 
-function getAgentStatus(entries: AgentLogEntry[]): AgentStatus {
-  if (entries.length === 0) return 'unknown';
-  const last = entries[entries.length - 1];
-  const elapsed = Date.now() - new Date(last.timestamp).getTime();
+function getAgentStatusFromTimestamp(lastTimestamp: string | undefined): AgentStatus {
+  if (!lastTimestamp) return 'unknown';
+  const elapsed = Date.now() - new Date(lastTimestamp).getTime();
   if (elapsed < 60_000) return 'active';
   return 'idle';
 }
@@ -74,8 +53,9 @@ const agentStatusColors: Record<AgentStatus, string> = {
   unknown: 'var(--text-muted)',
 };
 
-export default function AgentsPanel({ team, selectedProject, selection, agentActivity, onSelect, sidebarMode, style }: AgentsPanelProps) {
+export default function AgentsPanel({ team, selectedProject, selection, onSelect, onModeChange, sidebarMode, style }: AgentsPanelProps) {
   const [expandedAgents, setExpandedAgents] = useState<Set<string>>(new Set());
+  const [agentSessions, setAgentSessions] = useState<Map<string, AgentSession[]>>(new Map());
 
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -86,8 +66,20 @@ export default function AgentsPanel({ team, selectedProject, selection, agentAct
   const toggleAgent = (agentId: string) => {
     setExpandedAgents((prev) => {
       const next = new Set(prev);
-      if (next.has(agentId)) next.delete(agentId);
-      else next.add(agentId);
+      if (next.has(agentId)) {
+        next.delete(agentId);
+      } else {
+        next.add(agentId);
+        // Fetch sessions when expanding
+        if (!agentSessions.has(agentId)) {
+          fetch(`/api/agents/${encodeURIComponent(agentId)}/sessions`)
+            .then((r) => r.json())
+            .then((sessions: AgentSession[]) => {
+              setAgentSessions((prev) => new Map(prev).set(agentId, sessions));
+            })
+            .catch(() => {});
+        }
+      }
       return next;
     });
   };
@@ -109,6 +101,97 @@ export default function AgentsPanel({ team, selectedProject, selection, agentAct
 
     const selectedAgentId = selection.view === 'agent' ? selection.agentId : null;
 
+    // Group agents: team agents grouped under team header, standalone agents separate
+    const teamGroups = new Map<string, typeof selectedProject.agents>();
+    const standaloneAgents: typeof selectedProject.agents = [];
+    for (const agent of selectedProject.agents) {
+      const teamName = parseTeamFromAgentId(agent.agentId);
+      if (teamName) {
+        let group = teamGroups.get(teamName);
+        if (!group) { group = []; teamGroups.set(teamName, group); }
+        group.push(agent);
+      } else {
+        standaloneAgents.push(agent);
+      }
+    }
+
+    const renderAgent = (agent: typeof selectedProject.agents[0], teamName?: string) => {
+      const status = getAgentStatusFromTimestamp(agent.lastTimestamp);
+      const isSelected = selectedAgentId === agent.agentId;
+      const isExpanded = expandedAgents.has(agent.agentId);
+      const sessions = isExpanded ? (agentSessions.get(agent.agentId) ?? []) : [];
+
+      return (
+        <div key={agent.agentId} className="agents-panel__agent">
+          <button
+            className={`agents-panel__agent-btn ${isSelected ? 'agents-panel__agent-btn--active' : ''}`}
+            onClick={() =>
+              onSelect({
+                view: 'agent',
+                agentId: agent.agentId,
+                agentSlug: agent.slug,
+                teamName,
+              })
+            }
+          >
+            <span className="agents-panel__agent-dot" style={{ color: agentStatusColors[status] }}>
+              ●
+            </span>
+            <span className="agents-panel__agent-name truncate">{agent.slug}</span>
+            <span className="agents-panel__agent-type text-xs text-muted">{agent.entryCount}</span>
+          </button>
+
+          <div className="agents-panel__agent-meta text-xs text-muted">
+            {agent.lastTimestamp && <span>{timeAgo(agent.lastTimestamp)}</span>}
+            {agent.entryCount > 0 && (
+              <button
+                className="agents-panel__session-toggle"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleAgent(agent.agentId);
+                }}
+              >
+                {isExpanded ? '▾' : '▸'} sessions
+              </button>
+            )}
+          </div>
+
+          {isExpanded && sessions.length > 0 && (
+            <div className="agents-panel__sessions">
+              {sessions.map((s) => {
+                const isSessionSelected =
+                  selection.view === 'agent' &&
+                  selection.agentId === agent.agentId &&
+                  selection.sessionId === s.sessionId;
+                return (
+                  <button
+                    key={s.sessionId}
+                    className={`agents-panel__session ${isSessionSelected ? 'agents-panel__session--active' : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelect({
+                        view: 'agent',
+                        agentId: agent.agentId,
+                        agentSlug: agent.slug,
+                        teamName,
+                        sessionId: isSessionSelected ? undefined : s.sessionId,
+                      });
+                    }}
+                  >
+                    <span className="agents-panel__session-id">{s.sessionId.slice(0, 8)}</span>
+                    <span className="agents-panel__session-time">
+                      {formatTime(s.firstTimestamp)}–{formatTime(s.lastTimestamp)}
+                    </span>
+                    <span className="agents-panel__session-count">{s.entryCount}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      );
+    };
+
     return (
       <aside className="agents-panel" style={style}>
         <div className="agents-panel__header">
@@ -119,82 +202,29 @@ export default function AgentsPanel({ team, selectedProject, selection, agentAct
         </div>
 
         <div className="agents-panel__list">
-          {selectedProject.agents.map((agent) => {
-            const entries = agentActivity.get(agent.agentId) ?? [];
-            const status = getAgentStatus(entries);
-            const isSelected = selectedAgentId === agent.agentId;
-            const isExpanded = expandedAgents.has(agent.agentId);
-            const sessions = isExpanded ? getAgentSessions(entries) : [];
-            const lastEntry = entries.length > 0 ? entries[entries.length - 1] : null;
-
-            return (
-              <div key={agent.agentId} className="agents-panel__agent">
-                <button
-                  className={`agents-panel__agent-btn ${isSelected ? 'agents-panel__agent-btn--active' : ''}`}
-                  onClick={() =>
-                    onSelect({
-                      view: 'agent',
-                      agentId: agent.agentId,
-                      agentSlug: agent.slug,
-                    })
-                  }
-                >
-                  <span className="agents-panel__agent-dot" style={{ color: agentStatusColors[status] }}>
-                    ●
-                  </span>
-                  <span className="agents-panel__agent-name truncate">{agent.slug}</span>
-                  <span className="agents-panel__agent-type text-xs text-muted">{agent.entryCount}</span>
-                </button>
-
-                <div className="agents-panel__agent-meta text-xs text-muted">
-                  {lastEntry && <span>{timeAgo(lastEntry.timestamp)}</span>}
-                  {entries.length > 0 && (
-                    <button
-                      className="agents-panel__session-toggle"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleAgent(agent.agentId);
-                      }}
-                    >
-                      {isExpanded ? '▾' : '▸'} sessions
-                    </button>
-                  )}
-                </div>
-
-                {isExpanded && sessions.length > 0 && (
-                  <div className="agents-panel__sessions">
-                    {sessions.map((s) => {
-                      const isSessionSelected =
-                        selection.view === 'agent' &&
-                        selection.agentId === agent.agentId &&
-                        selection.sessionId === s.sessionId;
-                      return (
-                        <button
-                          key={s.sessionId}
-                          className={`agents-panel__session ${isSessionSelected ? 'agents-panel__session--active' : ''}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onSelect({
-                              view: 'agent',
-                              agentId: agent.agentId,
-                              agentSlug: agent.slug,
-                              sessionId: isSessionSelected ? undefined : s.sessionId,
-                            });
-                          }}
-                        >
-                          <span className="agents-panel__session-id">{s.sessionId.slice(0, 8)}</span>
-                          <span className="agents-panel__session-time">
-                            {formatTime(s.firstSeen)}–{formatTime(s.lastSeen)}
-                          </span>
-                          <span className="agents-panel__session-count">{s.entryCount}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+          {/* Team groups */}
+          {Array.from(teamGroups).map(([teamName, agents]) => (
+            <div key={teamName} className="agents-panel__team-group">
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '4px 8px',
+                  margin: '4px 0 2px',
+                  color: 'var(--text-muted)',
+                  fontSize: '11px',
+                }}
+              >
+                <span style={{ color: 'var(--accent-cyan)' }}>⚑</span>
+                <span className="truncate" style={{ flex: 1 }}>{teamName}</span>
+                <span>{agents.length}</span>
               </div>
-            );
-          })}
+              {agents.map((a) => renderAgent(a, teamName))}
+            </div>
+          ))}
+          {/* Standalone agents */}
+          {standaloneAgents.map((a) => renderAgent(a))}
         </div>
       </aside>
     );
@@ -238,12 +268,15 @@ export default function AgentsPanel({ team, selectedProject, selection, agentAct
       <div className="agents-panel__list">
         {team.config.members.map((member) => {
           const agentSlug = team.agentSlugs[member.agentId] ?? member.name;
-          const entries = agentActivity.get(member.agentId) ?? [];
-          const status = getAgentStatus(entries);
           const isSelected = selectedAgentId === member.agentId;
           const isExpanded = expandedAgents.has(member.agentId);
-          const sessions = isExpanded ? getAgentSessions(entries) : [];
-          const lastEntry = entries[entries.length - 1];
+          const sessions = isExpanded ? (agentSessions.get(member.agentId) ?? []) : [];
+          // Use team lastActivity as rough proxy; individual agent timestamps
+          // are available from the snapshot's project overview but not directly here.
+          // The status dot will update when the user views the agent detail.
+          const status: AgentStatus = team.lastActivity
+            ? getAgentStatusFromTimestamp(team.lastActivity)
+            : 'unknown';
 
           return (
             <div key={member.agentId} className="agents-panel__agent">
@@ -266,18 +299,16 @@ export default function AgentsPanel({ team, selectedProject, selection, agentAct
               </button>
 
               <div className="agents-panel__agent-meta text-xs text-muted">
-                {lastEntry && <span>{timeAgo(lastEntry.timestamp)}</span>}
-                {entries.length > 0 && (
-                  <button
-                    className="agents-panel__session-toggle"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleAgent(member.agentId);
-                    }}
-                  >
-                    {isExpanded ? '▾' : '▸'} sessions
-                  </button>
-                )}
+                {team.lastActivity && <span>{timeAgo(team.lastActivity)}</span>}
+                <button
+                  className="agents-panel__session-toggle"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleAgent(member.agentId);
+                  }}
+                >
+                  {isExpanded ? '▾' : '▸'} sessions
+                </button>
               </div>
 
               {isExpanded && sessions.length > 0 && (
@@ -304,7 +335,7 @@ export default function AgentsPanel({ team, selectedProject, selection, agentAct
                       >
                         <span className="agents-panel__session-id">{s.sessionId.slice(0, 8)}</span>
                         <span className="agents-panel__session-time">
-                          {formatTime(s.firstSeen)}–{formatTime(s.lastSeen)}
+                          {formatTime(s.firstTimestamp)}–{formatTime(s.lastTimestamp)}
                         </span>
                         <span className="agents-panel__session-count">{s.entryCount}</span>
                       </button>

@@ -32,8 +32,8 @@ export function initWebSocket(server: Server): void {
     const clientCount = wss!.clients.size;
     console.log(`[ws] Client connected (total: ${clientCount})`);
 
-    // Send initial snapshot
-    const snapshot = cache.getSnapshot();
+    // Send initial lean snapshot (no agentActivity)
+    const snapshot = cache.getLeanSnapshot();
     ws.send(JSON.stringify({ type: 'snapshot', data: snapshot } satisfies WsEvent));
 
     ws.on('pong', () => {
@@ -70,9 +70,17 @@ export function initWebSocket(server: Server): void {
     clearInterval(heartbeat);
   });
 
-  // Listen for cache changes and broadcast full snapshot
+  // Listen for cache changes and broadcast lean snapshot + deltas
   cache.onChange.on('change', () => {
-    const snap = cache.getSnapshot();
+    const snap = cache.getLeanSnapshot();
     broadcast({ type: 'snapshot', data: snap });
+
+    // Broadcast only new entries as deltas
+    const newEntries = cache.getAndClearNewEntries();
+    for (const [agentId, entries] of newEntries) {
+      if (entries.length > 0) {
+        broadcast({ type: 'agent_entries_delta', agentId, entries });
+      }
+    }
   });
 }

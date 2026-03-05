@@ -44,7 +44,7 @@ function useResizable(initial: number, min: number, max: number) {
 }
 
 export default function App() {
-  const { snapshot, connected, agentActivity, lastUpdated } = useTeamsSocket();
+  const { snapshot, connected, lastUpdated } = useTeamsSocket();
   const [selection, setSelection] = useState<ViewSelection>({ view: 'overview' });
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
@@ -80,7 +80,6 @@ export default function App() {
         onSelect={handleSelect}
         sidebarMode={sidebarMode}
         onModeChange={setSidebarMode}
-        agentActivity={agentActivity}
         style={{ width: panel1.width, minWidth: panel1.width }}
       />
       <div className="resize-handle" onMouseDown={panel1.onMouseDown} />
@@ -88,8 +87,8 @@ export default function App() {
         team={team}
         selectedProject={project}
         selection={selection}
-        agentActivity={agentActivity}
         onSelect={handleSelect}
+        onModeChange={setSidebarMode}
         sidebarMode={sidebarMode}
         style={{ width: panel2.width, minWidth: panel2.width }}
       />
@@ -97,7 +96,6 @@ export default function App() {
       <MainPanel
         selection={selection}
         snapshot={snapshot}
-        agentActivity={agentActivity}
         onSelect={handleSelect}
       />
     </div>

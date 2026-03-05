@@ -37,7 +37,7 @@ function startTasksWatcher(): void {
   const onTaskChange = debounce(async (_event: string, filename: string | null) => {
     if (!filename) {
       // Full refresh if no filename
-      for (const team of (await import('./teamsCache.js')).getSnapshot().teams) {
+      for (const team of (await import('./teamsCache.js')).getLeanSnapshot().teams) {
         await cache.refreshTasks(team.config.name);
       }
     } else {
@@ -70,7 +70,7 @@ function startTeamsWatcher(): void {
   const onTeamChange = debounce(async () => {
     await cache.refreshTeams();
     // Also refresh tasks in case new team appeared
-    for (const team of cache.getSnapshot().teams) {
+    for (const team of cache.getLeanSnapshot().teams) {
       await cache.refreshTasks(team.config.name);
     }
     cache.onChange.emit('change');
@@ -111,10 +111,10 @@ function startFullRefreshPoller(): void {
   let lastSnapshot = '';
   fullRefreshTimer = setInterval(async () => {
     await cache.refreshTeams();
-    for (const team of cache.getSnapshot().teams) {
+    for (const team of cache.getLeanSnapshot().teams) {
       await cache.refreshTasks(team.config.name);
     }
-    const snapshot = JSON.stringify(cache.getSnapshot());
+    const snapshot = JSON.stringify(cache.getLeanSnapshot());
     if (snapshot !== lastSnapshot) {
       lastSnapshot = snapshot;
       cache.onChange.emit('change');
@@ -128,7 +128,7 @@ function startJsonlPoller(): void {
   let lastSnapshot = '';
   jsonlTimer = setInterval(async () => {
     await cache.scanAgentJsonl();
-    const snapshot = JSON.stringify(cache.getSnapshot());
+    const snapshot = JSON.stringify(cache.getLeanSnapshot());
     if (snapshot !== lastSnapshot) {
       lastSnapshot = snapshot;
       cache.onChange.emit('change');

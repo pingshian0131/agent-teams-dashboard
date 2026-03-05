@@ -22,13 +22,13 @@ export async function handleTeamsApi(
 
   // GET /api/snapshot
   if (path === '/api/snapshot') {
-    json(res, cache.getSnapshot());
+    json(res, cache.getLeanSnapshot());
     return true;
   }
 
   // GET /api/teams
   if (path === '/api/teams') {
-    const snapshot = cache.getSnapshot();
+    const snapshot = cache.getLeanSnapshot();
     json(res, snapshot.teams);
     return true;
   }
@@ -37,7 +37,7 @@ export async function handleTeamsApi(
   const tasksMatch = path.match(/^\/api\/teams\/([^/]+)\/tasks$/);
   if (tasksMatch) {
     const teamId = decodeURIComponent(tasksMatch[1]);
-    const snapshot = cache.getSnapshot();
+    const snapshot = cache.getLeanSnapshot();
     const team = snapshot.teams.find((t: TeamOverview) => t.config.name === teamId);
     if (!team) {
       notFound(res);
@@ -51,7 +51,7 @@ export async function handleTeamsApi(
   const teamMatch = path.match(/^\/api\/teams\/([^/]+)$/);
   if (teamMatch) {
     const teamId = decodeURIComponent(teamMatch[1]);
-    const snapshot = cache.getSnapshot();
+    const snapshot = cache.getLeanSnapshot();
     const team = snapshot.teams.find((t: TeamOverview) => t.config.name === teamId);
     if (!team) {
       notFound(res);
@@ -84,14 +84,15 @@ export async function handleTeamsApi(
   const agentMatch = path.match(/^\/api\/agents\/([^/]+)\/activity$/);
   if (agentMatch) {
     const agentId = decodeURIComponent(agentMatch[1]);
-    let entries = cache.getAgentActivity(agentId);
     const limitParam = url.searchParams.get('limit');
-    if (limitParam) {
-      const limit = parseInt(limitParam, 10);
-      if (!isNaN(limit) && limit > 0) {
-        entries = entries.slice(-limit);
-      }
-    }
+    const offsetParam = url.searchParams.get('offset');
+    const limit = limitParam ? parseInt(limitParam, 10) : undefined;
+    const offset = offsetParam ? parseInt(offsetParam, 10) : undefined;
+    const entries = cache.getAgentActivity(
+      agentId,
+      limit && !isNaN(limit) && limit > 0 ? limit : undefined,
+      offset && !isNaN(offset) && offset >= 0 ? offset : undefined,
+    );
     json(res, entries);
     return true;
   }

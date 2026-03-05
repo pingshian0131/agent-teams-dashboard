@@ -72,7 +72,7 @@ export interface TeamOverview {
 export interface FullSnapshot {
   teams: TeamOverview[];
   unmatchedAgents: { agentId: string; slug: string; sessionId: string }[];
-  agentActivity: Record<string, AgentLogEntry[]>;
+  agentActivity?: Record<string, AgentLogEntry[]>;
   projects: ProjectOverview[];
 }
 
@@ -82,7 +82,8 @@ export type WsEvent =
   | { type: 'tasks_updated'; teamId: string; tasks: TeamTask[] }
   | { type: 'team_updated'; team: TeamOverview }
   | { type: 'team_removed'; teamId: string }
-  | { type: 'agent_activity'; agentId: string; entries: AgentLogEntry[] };
+  | { type: 'agent_activity'; agentId: string; entries: AgentLogEntry[] }
+  | { type: 'agent_entries_delta'; agentId: string; entries: AgentLogEntry[] };
 
 // Sidebar mode
 export type SidebarMode = 'teams' | 'conversations';

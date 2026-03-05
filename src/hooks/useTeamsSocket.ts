@@ -1,12 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type { FullSnapshot, WsEvent, AgentLogEntry } from '../types';
+import type { FullSnapshot, WsEvent } from '../types';
 
 const WS_RECONNECT_DELAY = 3000;
 
 export function useTeamsSocket() {
   const [snapshot, setSnapshot] = useState<FullSnapshot | null>(null);
   const [connected, setConnected] = useState(false);
-  const [agentActivity, setAgentActivity] = useState<Map<string, AgentLogEntry[]>>(new Map<string, AgentLogEntry[]>());
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -35,10 +34,6 @@ export function useTeamsSocket() {
         switch (msg.type) {
           case 'snapshot':
             setSnapshot(msg.data);
-            // Populate agentActivity from snapshot
-            if (msg.data.agentActivity) {
-              setAgentActivity(new Map(Object.entries(msg.data.agentActivity)));
-            }
             break;
 
           case 'tasks_updated':
@@ -89,12 +84,11 @@ export function useTeamsSocket() {
             break;
 
           case 'agent_activity':
-            setAgentActivity((prev) => {
-              const next = new Map(prev);
-              const existing = next.get(msg.agentId) ?? [];
-              next.set(msg.agentId, [...existing, ...msg.entries]);
-              return next;
-            });
+          case 'agent_entries_delta':
+            // Dispatch to useAgentEntries listeners via CustomEvent
+            window.dispatchEvent(new CustomEvent('agent-entries-delta', {
+              detail: { agentId: msg.agentId, entries: msg.entries },
+            }));
             break;
         }
       } catch {
@@ -111,5 +105,5 @@ export function useTeamsSocket() {
     };
   }, [connect]);
 
-  return { snapshot, connected, agentActivity, lastUpdated };
+  return { snapshot, connected, lastUpdated };
 }

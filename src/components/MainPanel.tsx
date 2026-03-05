@@ -1,4 +1,4 @@
-import type { FullSnapshot, ViewSelection, AgentLogEntry } from '../types';
+import type { FullSnapshot, ViewSelection } from '../types';
 import OverviewPanel from './OverviewPanel';
 import AgentPanel from './AgentPanel';
 import TaskBoard from './TaskBoard';
@@ -7,11 +7,10 @@ import EmptyState from './EmptyState';
 interface MainPanelProps {
   selection: ViewSelection;
   snapshot: FullSnapshot | null;
-  agentActivity: Map<string, AgentLogEntry[]>;
   onSelect: (sel: ViewSelection) => void;
 }
 
-export default function MainPanel({ selection, snapshot, agentActivity, onSelect }: MainPanelProps) {
+export default function MainPanel({ selection, snapshot, onSelect }: MainPanelProps) {
   if (!snapshot) {
     return (
       <main className="main-panel">
@@ -31,18 +30,15 @@ export default function MainPanel({ selection, snapshot, agentActivity, onSelect
         return <TaskBoard tasks={team.tasks} teamName={selection.teamName} />;
       }
 
-      case 'agent': {
-        const entries = agentActivity.get(selection.agentId) ?? [];
+      case 'agent':
         return (
           <AgentPanel
             agentId={selection.agentId}
             agentSlug={selection.agentSlug}
-            entries={entries}
             teamName={selection.teamName}
             sessionId={selection.sessionId}
           />
         );
-      }
 
       case 'tasks': {
         const team = snapshot.teams.find((t) => t.config.name === selection.teamName);

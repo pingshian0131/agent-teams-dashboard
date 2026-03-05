@@ -18,6 +18,7 @@ const TEAMS_DIR = join(CLAUDE_DIR, 'teams');
 const TASKS_DIR = join(CLAUDE_DIR, 'tasks');
 const PROJECTS_DIR = join(CLAUDE_DIR, 'projects');
 const MAX_ENTRIES_PER_AGENT = 200;
+const MAX_FILE_AGE_MS = 7 * 24 * 60 * 60 * 1000; // Only read JSONL files modified within 7 days
 
 // In-memory caches
 const teams = new Map<string, TeamConfig>();
@@ -26,6 +27,16 @@ const agentEntries = new Map<string, AgentLogEntry[]>();
 const agentOffsets = new Map<string, number>();
 const teamFileMtimes = new Map<string, number>(); // team name -> latest mtime (ms)
 const knownProjectDirs = new Set<string>(); // all project dir names under ~/.claude/projects/
+const changedAgentIds = new Set<string>(); // agentIds with new entries since last clear
+const newEntriesBuffer = new Map<string, AgentLogEntry[]>(); // agentId -> entries added since last clear
+
+// Team lead session -> member info (for subagent-to-team mapping)
+interface TeamLeadInfo {
+  teamName: string;
+  members: { agentId: string; name: string; prompt: string }[];
+}
+const teamLeadSessions = new Map<string, TeamLeadInfo>(); // leadSessionId -> team info
+const subagentToMember = new Map<string, string>(); // subagent filePath -> memberAgentId
 
 export const onChange = new EventEmitter();
 
@@ -79,6 +90,21 @@ export async function refreshTeams(): Promise<void> {
       };
       teams.set(config.name, config);
       currentNames.add(config.name);
+
+      // Build team lead session mapping for subagent resolution
+      const leadSessionId = parsed.leadSessionId;
+      if (leadSessionId && Array.isArray(parsed.members)) {
+        const members = parsed.members
+          .filter((m: any) => m.agentType !== 'team-lead' && m.prompt)
+          .map((m: any) => ({
+            agentId: m.agentId ?? '',
+            name: m.name ?? '',
+            prompt: (m.prompt ?? '').slice(0, 300), // first 300 chars is enough for matching
+          }));
+        if (members.length > 0) {
+          teamLeadSessions.set(leadSessionId, { teamName: config.name, members });
+        }
+      }
 
       // Track config file mtime
       const configStat = await safeFileStat(configPath);
@@ -186,17 +212,21 @@ export async function scanAgentJsonl(): Promise<void> {
       // Subagent JSONL: agent-*.jsonl under session/subagents/
       const subagentsDir = join(entryPath, 'subagents');
       const files = await safeReaddir(subagentsDir);
+      const parentSessionId = entry; // the session UUID folder name
       for (const file of files) {
         if (!file.startsWith('agent-') || !file.endsWith('.jsonl')) continue;
-        await readNewEntries(join(subagentsDir, file), false, projDir);
+        await readNewEntries(join(subagentsDir, file), false, projDir, parentSessionId);
       }
     }
   }
 }
 
-async function readNewEntries(filePath: string, isSessionFile: boolean, projectDir?: string): Promise<void> {
+async function readNewEntries(filePath: string, isSessionFile: boolean, projectDir?: string, parentSessionId?: string): Promise<void> {
   const fileStat = await safeFileStat(filePath);
   if (!fileStat) return;
+
+  // Skip files not modified within the recency window
+  if (Date.now() - fileStat.mtimeMs > MAX_FILE_AGE_MS) return;
 
   const currentOffset = agentOffsets.get(filePath) ?? 0;
   const fileSize = fileStat.size;
@@ -241,11 +271,18 @@ async function readNewEntries(filePath: string, isSessionFile: boolean, projectD
           fullAgentId = `${agentName}@${teamName}`;
           slug = agentName;
         } else {
-          // Regular conversation: use sessionId as agentId
+          // Check if this session belongs to a team lead
           const sessionId = parsed.sessionId ?? '';
           if (!sessionId) continue;
-          fullAgentId = `session:${sessionId}`;
-          slug = parsed.slug || sessionId.slice(0, 8);
+          const teamInfo = teamLeadSessions.get(sessionId);
+          if (teamInfo) {
+            fullAgentId = `team-lead@${teamInfo.teamName}`;
+            slug = 'team-lead';
+          } else {
+            // Regular conversation: use sessionId as agentId
+            fullAgentId = `session:${sessionId}`;
+            slug = parsed.slug || sessionId.slice(0, 8);
+          }
         }
 
         const entry: AgentLogEntry = {
@@ -272,6 +309,10 @@ async function readNewEntries(filePath: string, isSessionFile: boolean, projectD
           agentEntries.set(fullAgentId, arr);
         }
         arr.push(entry);
+        changedAgentIds.add(fullAgentId);
+        let buf = newEntriesBuffer.get(fullAgentId);
+        if (!buf) { buf = []; newEntriesBuffer.set(fullAgentId, buf); }
+        buf.push(entry);
         if (arr.length > MAX_ENTRIES_PER_AGENT) {
           arr.splice(0, arr.length - MAX_ENTRIES_PER_AGENT);
         }
@@ -285,10 +326,52 @@ async function readNewEntries(filePath: string, isSessionFile: boolean, projectD
         continue;
       }
 
-      // Subagent JSONL: use agentId from the file
+      // Skip non-message entries for subagent files too
+      if (!parsed.type || (parsed.type !== 'user' && parsed.type !== 'assistant')) continue;
+
+      // Subagent JSONL: resolve team member agentId if possible
+      let resolvedAgentId = parsed.agentId ?? '';
+      let resolvedSlug = parsed.slug ?? '';
+
+      // Try to resolve subagent hash -> team member agentId
+      if (resolvedAgentId && parentSessionId) {
+        const cached = subagentToMember.get(filePath);
+        if (cached) {
+          // Successfully matched to a team member
+          resolvedSlug = cached.split('@')[0];
+          resolvedAgentId = cached;
+        } else if (cached === undefined) {
+          // Not yet checked — try matching
+          // Try to match user message to team member prompt
+          const teamInfo = teamLeadSessions.get(parentSessionId);
+          if (teamInfo) {
+            if (parsed.type === 'user') {
+              const msgContent = Array.isArray(parsed.message?.content)
+                ? parsed.message.content.map((c: any) => c.text ?? '').join('')
+                : String(parsed.message?.content ?? '');
+              let matched = false;
+              for (const member of teamInfo.members) {
+                if (member.prompt && msgContent.includes(member.prompt.slice(0, 100))) {
+                  subagentToMember.set(filePath, member.agentId);
+                  resolvedAgentId = member.agentId;
+                  resolvedSlug = member.name;
+                  matched = true;
+                  break;
+                }
+              }
+              // No match: mark as checked so we don't retry, but keep original hash agentId
+              if (!matched) {
+                subagentToMember.set(filePath, '');
+              }
+            }
+            // For assistant entries before we've seen a user entry, don't set fallback yet
+          }
+        }
+      }
+
       const entry: AgentLogEntry = {
-        agentId: parsed.agentId ?? '',
-        slug: parsed.slug ?? '',
+        agentId: resolvedAgentId,
+        slug: resolvedSlug,
         sessionId: parsed.sessionId ?? '',
         type: parsed.type ?? 'assistant',
         message: {
@@ -312,6 +395,10 @@ async function readNewEntries(filePath: string, isSessionFile: boolean, projectD
         agentEntries.set(entry.agentId, arr);
       }
       arr.push(entry);
+      changedAgentIds.add(entry.agentId);
+      let buf = newEntriesBuffer.get(entry.agentId);
+      if (!buf) { buf = []; newEntriesBuffer.set(entry.agentId, buf); }
+      buf.push(entry);
       if (arr.length > MAX_ENTRIES_PER_AGENT) {
         arr.splice(0, arr.length - MAX_ENTRIES_PER_AGENT);
       }
@@ -324,7 +411,9 @@ async function readNewEntries(filePath: string, isSessionFile: boolean, projectD
 // --- Snapshot assembly ---
 
 function buildTeamOverview(teamName: string): TeamOverview {
-  const config = teams.get(teamName) ?? { name: teamName, members: [] };
+  const stored = teams.get(teamName) ?? { name: teamName, members: [] };
+  // Clone so we can add dynamic members without mutating the cache
+  const config: TeamConfig = { ...stored, members: [...stored.members] };
   const teamTasks = tasks.get(teamName) ?? [];
 
   const taskStats = {
@@ -336,6 +425,8 @@ function buildTeamOverview(teamName: string): TeamOverview {
 
   // Build agentSlugs: map agentId -> slug from agentEntries
   const agentSlugs: Record<string, string> = {};
+  const knownMemberIds = new Set(config.members.map(m => m.agentId));
+
   for (const member of config.members) {
     // Look for agent entries matching this member's agentId
     const entries = agentEntries.get(member.agentId);
@@ -351,6 +442,7 @@ function buildTeamOverview(teamName: string): TeamOverview {
       }
     }
   }
+
 
   // Find last activity timestamp from agent JSONL entries
   let lastActivity = '';
@@ -537,10 +629,51 @@ export function getSnapshot(): FullSnapshot {
   return { teams: teamOverviews, unmatchedAgents, agentActivity: activity, projects: buildProjectOverviews() };
 }
 
+export function getLeanSnapshot(): FullSnapshot {
+  const teamOverviews: TeamOverview[] = [];
+  const matchedAgentIds = new Set<string>();
+
+  for (const teamName of teams.keys()) {
+    const overview = buildTeamOverview(teamName);
+    teamOverviews.push(overview);
+    for (const member of overview.config.members) {
+      matchedAgentIds.add(member.agentId);
+      matchedAgentIds.add(member.agentId.split('@')[0]);
+    }
+  }
+
+  const unmatchedAgents: { agentId: string; slug: string; sessionId: string }[] = [];
+  for (const [agentId, entries] of agentEntries) {
+    if (!matchedAgentIds.has(agentId) && entries.length > 0) {
+      const last = entries[entries.length - 1];
+      unmatchedAgents.push({ agentId, slug: last.slug, sessionId: last.sessionId });
+    }
+  }
+
+  return { teams: teamOverviews, unmatchedAgents, projects: buildProjectOverviews() };
+}
+
+export function getAndClearNewEntries(): Map<string, AgentLogEntry[]> {
+  const result = new Map(newEntriesBuffer);
+  changedAgentIds.clear();
+  newEntriesBuffer.clear();
+  return result;
+}
+
 // --- Query ---
 
-export function getAgentActivity(agentId: string): AgentLogEntry[] {
-  return agentEntries.get(agentId) ?? [];
+export function getAgentActivity(agentId: string, limit?: number, offset?: number): AgentLogEntry[] {
+  const entries = agentEntries.get(agentId) ?? [];
+  if (offset !== undefined && limit !== undefined) {
+    // offset counts from the end: offset=0 means latest `limit` entries
+    const end = entries.length - offset;
+    const start = Math.max(0, end - limit);
+    return entries.slice(start, Math.max(start, end));
+  }
+  if (limit !== undefined) {
+    return entries.slice(-limit);
+  }
+  return entries;
 }
 
 export function getAgentSessions(agentId: string): AgentSession[] {
