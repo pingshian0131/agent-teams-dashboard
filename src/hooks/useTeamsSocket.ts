@@ -35,6 +35,10 @@ export function useTeamsSocket() {
         switch (msg.type) {
           case 'snapshot':
             setSnapshot(msg.data);
+            // Populate agentActivity from snapshot
+            if (msg.data.agentActivity) {
+              setAgentActivity(new Map(Object.entries(msg.data.agentActivity)));
+            }
             break;
 
           case 'tasks_updated':

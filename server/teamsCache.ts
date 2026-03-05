@@ -159,27 +159,35 @@ async function refreshAllTasks(): Promise<void> {
 
 // --- Agent JSONL scanning ---
 
+// Scan both subagent JSONL (agent-*.jsonl) and team session JSONL (UUID.jsonl with teamName)
 export async function scanAgentJsonl(): Promise<void> {
   const projectDirs = await safeReaddir(PROJECTS_DIR);
 
   for (const projDir of projectDirs) {
     const projPath = join(PROJECTS_DIR, projDir);
-    const sessionDirs = await safeReaddir(projPath);
+    const entries = await safeReaddir(projPath);
 
-    for (const sessionDir of sessionDirs) {
-      const subagentsDir = join(projPath, sessionDir, 'subagents');
+    for (const entry of entries) {
+      const entryPath = join(projPath, entry);
+
+      // Team session JSONL: UUID.jsonl files at project root level
+      if (entry.endsWith('.jsonl')) {
+        await readNewEntries(entryPath, true);
+        continue;
+      }
+
+      // Subagent JSONL: agent-*.jsonl under session/subagents/
+      const subagentsDir = join(entryPath, 'subagents');
       const files = await safeReaddir(subagentsDir);
-
       for (const file of files) {
         if (!file.startsWith('agent-') || !file.endsWith('.jsonl')) continue;
-        const filePath = join(subagentsDir, file);
-        await readNewEntries(filePath);
+        await readNewEntries(join(subagentsDir, file), false);
       }
     }
   }
 }
 
-async function readNewEntries(filePath: string): Promise<void> {
+async function readNewEntries(filePath: string, isSessionFile: boolean): Promise<void> {
   const fileStat = await safeFileStat(filePath);
   if (!fileStat) return;
 
@@ -191,7 +199,6 @@ async function readNewEntries(filePath: string): Promise<void> {
   const raw = await safeReadFile(filePath);
   if (!raw) return;
 
-  // Read only from the offset position
   const newContent = raw.slice(currentOffset);
   agentOffsets.set(filePath, fileSize);
 
@@ -200,6 +207,46 @@ async function readNewEntries(filePath: string): Promise<void> {
   for (const line of lines) {
     try {
       const parsed = JSON.parse(line);
+
+      // For session files, only process entries that belong to a team agent
+      if (isSessionFile) {
+        const teamName = parsed.teamName;
+        const agentName = parsed.agentName;
+        if (!teamName || !agentName) continue;
+
+        // Use team agentId format: name@team
+        const fullAgentId = `${agentName}@${teamName}`;
+
+        const entry: AgentLogEntry = {
+          agentId: fullAgentId,
+          slug: agentName,
+          sessionId: parsed.sessionId ?? '',
+          type: parsed.type ?? 'assistant',
+          message: {
+            role: parsed.message?.role ?? '',
+            content: Array.isArray(parsed.message?.content)
+              ? parsed.message.content
+              : typeof parsed.message?.content === 'string'
+                ? [{ type: 'text' as const, text: parsed.message.content }]
+                : [],
+            model: parsed.message?.model,
+          },
+          timestamp: parsed.timestamp ?? '',
+        };
+
+        let arr = agentEntries.get(fullAgentId);
+        if (!arr) {
+          arr = [];
+          agentEntries.set(fullAgentId, arr);
+        }
+        arr.push(entry);
+        if (arr.length > MAX_ENTRIES_PER_AGENT) {
+          arr.splice(0, arr.length - MAX_ENTRIES_PER_AGENT);
+        }
+        continue;
+      }
+
+      // Subagent JSONL: use agentId from the file
       const entry: AgentLogEntry = {
         agentId: parsed.agentId ?? '',
         slug: parsed.slug ?? '',
@@ -219,17 +266,14 @@ async function readNewEntries(filePath: string): Promise<void> {
 
       if (!entry.agentId) continue;
 
-      let entries = agentEntries.get(entry.agentId);
-      if (!entries) {
-        entries = [];
-        agentEntries.set(entry.agentId, entries);
+      let arr = agentEntries.get(entry.agentId);
+      if (!arr) {
+        arr = [];
+        agentEntries.set(entry.agentId, arr);
       }
-      entries.push(entry);
-
-      // Trim to max entries
-      if (entries.length > MAX_ENTRIES_PER_AGENT) {
-        const excess = entries.length - MAX_ENTRIES_PER_AGENT;
-        entries.splice(0, excess);
+      arr.push(entry);
+      if (arr.length > MAX_ENTRIES_PER_AGENT) {
+        arr.splice(0, arr.length - MAX_ENTRIES_PER_AGENT);
       }
     } catch {
       // skip malformed line
@@ -292,13 +336,22 @@ function buildTeamOverview(teamName: string): TeamOverview {
 export function getSnapshot(): FullSnapshot {
   const teamOverviews: TeamOverview[] = [];
   const matchedAgentIds = new Set<string>();
+  // Map full agentId (name@team) -> resolved entries
+  const activity: Record<string, AgentLogEntry[]> = {};
 
   for (const teamName of teams.keys()) {
     const overview = buildTeamOverview(teamName);
     teamOverviews.push(overview);
     for (const member of overview.config.members) {
       matchedAgentIds.add(member.agentId);
-      matchedAgentIds.add(member.agentId.split('@')[0]);
+      const shortId = member.agentId.split('@')[0];
+      matchedAgentIds.add(shortId);
+
+      // Resolve: try full agentId first, then short hash
+      const entries = agentEntries.get(member.agentId) ?? agentEntries.get(shortId);
+      if (entries && entries.length > 0) {
+        activity[member.agentId] = entries;
+      }
     }
   }
 
@@ -312,10 +365,11 @@ export function getSnapshot(): FullSnapshot {
         slug: last.slug,
         sessionId: last.sessionId,
       });
+      activity[agentId] = entries;
     }
   }
 
-  return { teams: teamOverviews, unmatchedAgents };
+  return { teams: teamOverviews, unmatchedAgents, agentActivity: activity };
 }
 
 // --- Query ---

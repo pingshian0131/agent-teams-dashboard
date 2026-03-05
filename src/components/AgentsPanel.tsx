@@ -162,15 +162,34 @@ export default function AgentsPanel({ team, selection, agentActivity, onSelect }
 
               {isExpanded && sessions.length > 0 && (
                 <div className="agents-panel__sessions">
-                  {sessions.map((s) => (
-                    <div key={s.sessionId} className="agents-panel__session">
-                      <span className="agents-panel__session-id">{s.sessionId.slice(0, 8)}</span>
-                      <span className="agents-panel__session-time">
-                        {formatTime(s.firstSeen)}–{formatTime(s.lastSeen)}
-                      </span>
-                      <span className="agents-panel__session-count">{s.entryCount}</span>
-                    </div>
-                  ))}
+                  {sessions.map((s) => {
+                    const isSessionSelected =
+                      selection.view === 'agent' &&
+                      selection.agentId === member.agentId &&
+                      selection.sessionId === s.sessionId;
+                    return (
+                      <button
+                        key={s.sessionId}
+                        className={`agents-panel__session ${isSessionSelected ? 'agents-panel__session--active' : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelect({
+                            view: 'agent',
+                            agentId: member.agentId,
+                            agentSlug,
+                            teamName: team.config.name,
+                            sessionId: isSessionSelected ? undefined : s.sessionId,
+                          });
+                        }}
+                      >
+                        <span className="agents-panel__session-id">{s.sessionId.slice(0, 8)}</span>
+                        <span className="agents-panel__session-time">
+                          {formatTime(s.firstSeen)}–{formatTime(s.lastSeen)}
+                        </span>
+                        <span className="agents-panel__session-count">{s.entryCount}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>

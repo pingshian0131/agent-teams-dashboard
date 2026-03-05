@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { AgentLogEntry, TeamTask } from '../types';
+import type { AgentLogEntry } from '../types';
 import ActivityEntry from './ActivityEntry';
 
 interface AgentPanelProps {
@@ -7,68 +7,77 @@ interface AgentPanelProps {
   agentSlug: string;
   entries: AgentLogEntry[];
   teamName?: string;
-  tasks?: TeamTask[];
+  sessionId?: string;
 }
 
-export default function AgentPanel({ agentId, agentSlug, entries, teamName, tasks }: AgentPanelProps) {
+function getSessionLabel(sessionId: string): string {
+  return sessionId.slice(0, 8);
+}
+
+export default function AgentPanel({ agentId, agentSlug, entries, teamName, sessionId }: AgentPanelProps) {
   const feedRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
 
-  const myTasks = tasks?.filter((t) => t.owner === agentSlug) ?? [];
+  const filtered = sessionId ? entries.filter((e) => e.sessionId === sessionId) : entries;
 
-  useEffect(() => {
-    if (autoScroll && feedRef.current) {
-      feedRef.current.scrollTop = feedRef.current.scrollHeight;
-    }
-  }, [entries.length, autoScroll]);
-
-  const handleScroll = () => {
-    if (!feedRef.current) return;
-    const { scrollTop, scrollHeight, clientHeight } = feedRef.current;
-    const isAtBottom = scrollHeight - scrollTop - clientHeight < 40;
-    setAutoScroll(isAtBottom);
-  };
-
-  // Determine agent status from last entry
-  const lastEntry = entries[entries.length - 1];
+  const lastEntry = filtered[filtered.length - 1];
   const statusLabel = lastEntry
     ? Date.now() - new Date(lastEntry.timestamp).getTime() < 60_000
       ? 'active'
       : 'idle'
     : 'unknown';
 
+  useEffect(() => {
+    if (autoScroll && feedRef.current) {
+      feedRef.current.scrollTop = feedRef.current.scrollHeight;
+    }
+  }, [filtered.length, autoScroll]);
+
+  const handleScroll = () => {
+    if (!feedRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = feedRef.current;
+    setAutoScroll(scrollHeight - scrollTop - clientHeight < 40);
+  };
+
   return (
-    <div className="agent-panel">
-      <div className="agent-panel__header">
-        <div className="flex items-center gap-2">
-          <h2 className="panel-title">{agentSlug}</h2>
+    <div className="chat-panel">
+      <div className="chat-panel__header">
+        <div className="chat-panel__header-left">
+          <span className="chat-panel__agent-name">{agentSlug}</span>
           <span className={`status-badge status-badge--${statusLabel}`}>{statusLabel}</span>
+          {sessionId && (
+            <span className="chat-panel__session-tag">session:{getSessionLabel(sessionId)}</span>
+          )}
         </div>
-        {teamName && <span className="text-xs text-muted">Team: {teamName}</span>}
-        <span className="text-xs text-muted">ID: {agentId.slice(0, 8)}</span>
+        <div className="chat-panel__header-right">
+          {teamName && <span className="chat-panel__team text-xs text-muted">{teamName}</span>}
+          <span className="text-xs text-muted">{filtered.length} msgs</span>
+        </div>
       </div>
 
-      {myTasks.length > 0 && (
-        <div className="agent-panel__tasks">
-          <h3 className="text-xs text-muted" style={{ marginBottom: 4 }}>Assigned Tasks</h3>
-          {myTasks.map((t) => (
-            <div key={t.id} className="agent-panel__task-item">
-              <span className={`task-status-dot task-status-dot--${t.status}`} />
-              <span>#{t.id} {t.subject}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="agent-panel__feed" ref={feedRef} onScroll={handleScroll}>
-        {entries.length === 0 ? (
-          <div className="text-muted" style={{ padding: 16, textAlign: 'center' }}>
-            No activity yet
+      <div className="chat-panel__feed" ref={feedRef} onScroll={handleScroll}>
+        {filtered.length === 0 ? (
+          <div className="chat-panel__empty">
+            <span className="text-muted">No messages yet</span>
           </div>
         ) : (
-          entries.map((entry, i) => <ActivityEntry key={`${entry.timestamp}-${i}`} entry={entry} />)
+          filtered.map((entry, i) => (
+            <ActivityEntry key={`${entry.timestamp}-${i}`} entry={entry} />
+          ))
         )}
       </div>
+
+      {!autoScroll && (
+        <button
+          className="chat-panel__scroll-btn"
+          onClick={() => {
+            setAutoScroll(true);
+            if (feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight;
+          }}
+        >
+          ↓ scroll to bottom
+        </button>
+      )}
     </div>
   );
 }

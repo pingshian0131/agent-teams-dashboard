@@ -33,14 +33,13 @@ export default function MainPanel({ selection, snapshot, agentActivity, onSelect
 
       case 'agent': {
         const entries = agentActivity.get(selection.agentId) ?? [];
-        const team = snapshot.teams.find((t) => t.config.name === selection.teamName);
         return (
           <AgentPanel
             agentId={selection.agentId}
             agentSlug={selection.agentSlug}
             entries={entries}
             teamName={selection.teamName}
-            tasks={team?.tasks}
+            sessionId={selection.sessionId}
           />
         );
       }

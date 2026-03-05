@@ -63,6 +63,7 @@ export interface TeamOverview {
 export interface FullSnapshot {
   teams: TeamOverview[];
   unmatchedAgents: { agentId: string; slug: string; sessionId: string }[];
+  agentActivity: Record<string, AgentLogEntry[]>;
 }
 
 // WebSocket events
@@ -77,5 +78,5 @@ export type WsEvent =
 export type ViewSelection =
   | { view: 'overview' }
   | { view: 'team'; teamName: string }
-  | { view: 'agent'; agentId: string; agentSlug: string; teamName?: string }
+  | { view: 'agent'; agentId: string; agentSlug: string; teamName?: string; sessionId?: string }
   | { view: 'tasks'; teamName: string };
