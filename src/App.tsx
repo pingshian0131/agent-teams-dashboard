@@ -1,9 +1,11 @@
 import type { ViewSelection, SidebarMode } from './types';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useTeamsSocket } from './hooks/useTeamsSocket';
+import { useAuth } from './hooks/useAuth';
 import Sidebar from './components/Sidebar';
 import AgentsPanel from './components/AgentsPanel';
 import MainPanel from './components/MainPanel';
+import LoginScreen from './components/LoginScreen';
 
 function useResizable(initial: number, min: number, max: number) {
   const [width, setWidth] = useState(initial);
@@ -44,7 +46,8 @@ function useResizable(initial: number, min: number, max: number) {
 }
 
 export default function App() {
-  const { snapshot, connected, lastUpdated } = useTeamsSocket();
+  const { token, needsAuth, setToken } = useAuth();
+  const { snapshot, connected, lastUpdated } = useTeamsSocket(token);
   const [selection, setSelection] = useState<ViewSelection>({ view: 'overview' });
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
@@ -67,6 +70,10 @@ export default function App() {
   const project = selectedProject
     ? snapshot?.projects?.find((p) => p.projectDir === selectedProject) ?? null
     : null;
+
+  if (needsAuth) {
+    return <LoginScreen onSubmit={setToken} />;
+  }
 
   return (
     <div className="app-container">

@@ -3,7 +3,7 @@ import type { FullSnapshot, WsEvent } from '../types';
 
 const WS_RECONNECT_DELAY = 3000;
 
-export function useTeamsSocket() {
+export function useTeamsSocket(token: string | null) {
   const [snapshot, setSnapshot] = useState<FullSnapshot | null>(null);
   const [connected, setConnected] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
@@ -12,14 +12,21 @@ export function useTeamsSocket() {
 
   const connect = useCallback(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+    const wsUrl = token
+      ? `${protocol}//${window.location.host}/ws?token=${encodeURIComponent(token)}`
+      : `${protocol}//${window.location.host}/ws`;
+    const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
     ws.onopen = () => setConnected(true);
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
       setConnected(false);
       wsRef.current = null;
+      if (event.code === 4401) {
+        window.dispatchEvent(new Event('auth-required'));
+        return;
+      }
       reconnectTimer.current = setTimeout(connect, WS_RECONNECT_DELAY);
     };
 
@@ -95,7 +102,7 @@ export function useTeamsSocket() {
         // ignore malformed messages
       }
     };
-  }, []);
+  }, [token]);
 
   useEffect(() => {
     connect();

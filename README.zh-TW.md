@@ -100,6 +100,33 @@ npm run server
 
 伺服器會從 `dist/` 提供靜態檔案，API 與 WebSocket 在同一個 port（預設 3001，可用 `PORT` 環境變數覆蓋）。
 
+### Remote 存取
+
+透過 Cloudflare Tunnel 或 Tailscale 等方式開放遠端存取時，設定 `AUTH_TOKEN` 啟用認證：
+
+```bash
+AUTH_TOKEN=your-secret-token npm run server
+
+# 搭配 CORS 收緊
+AUTH_TOKEN=your-secret-token CORS_ORIGIN=https://your-domain.com npm run server
+```
+
+設定 `AUTH_TOKEN` 後：
+- API 端點需帶 `Authorization: Bearer <token>` header 或 `?token=<token>` query param
+- WebSocket 連線需帶 `?token=<token>` query param
+- 靜態檔案（HTML/JS/CSS）不驗證，讓瀏覽器能載入登入頁面
+- 瀏覽器會顯示 token 輸入畫面，token 自動存入 `localStorage`
+
+未設定 `AUTH_TOKEN` 時，行為完全不變 — 免認證。
+
+**環境變數：**
+
+| 變數 | 預設值 | 說明 |
+|------|--------|------|
+| `PORT` | `3001` | 伺服器埠號 |
+| `AUTH_TOKEN` | _(未設定)_ | 設定後啟用認證 |
+| `CORS_ORIGIN` | `*` | CORS `Access-Control-Allow-Origin` 值 |
+
 ## 靈感來源
 
 靈感來自 [Claude Code Agent Teams Demo](https://youtu.be/Gmzh9HP7JGM?si=LDUFqPz0syBsWuta)

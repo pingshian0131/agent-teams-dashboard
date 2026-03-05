@@ -100,6 +100,33 @@ npm run server
 
 The server serves static files from `dist/` and provides API/WebSocket endpoints on the same port (default 3001).
 
+### Remote Access
+
+When exposing the dashboard remotely (e.g., via Cloudflare Tunnel or Tailscale), set `AUTH_TOKEN` to enable authentication:
+
+```bash
+AUTH_TOKEN=your-secret-token npm run server
+
+# With CORS restriction
+AUTH_TOKEN=your-secret-token CORS_ORIGIN=https://your-domain.com npm run server
+```
+
+When `AUTH_TOKEN` is set:
+- API endpoints require `Authorization: Bearer <token>` header or `?token=<token>` query param
+- WebSocket connections require `?token=<token>` query param
+- Static files (HTML/JS/CSS) are served without auth so the login page can load
+- The browser shows a token input screen; the token is saved in `localStorage`
+
+Without `AUTH_TOKEN`, the dashboard works exactly as before — no authentication required.
+
+**Environment Variables:**
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | `3001` | Server port |
+| `AUTH_TOKEN` | _(unset)_ | Set to enable authentication |
+| `CORS_ORIGIN` | `*` | CORS `Access-Control-Allow-Origin` value |
+
 ## Inspiration
 
 Inspired by [Claude Code Agent Teams Demo](https://youtu.be/Gmzh9HP7JGM?si=LDUFqPz0syBsWuta)

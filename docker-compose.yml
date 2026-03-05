@@ -11,6 +11,8 @@ services:
     environment:
       - PORT=3001
       - HOST_HOME=${HOME}
+      # - AUTH_TOKEN=your-secret-token
+      # - CORS_ORIGIN=https://your-domain.com
 
   frontend:
     build: .

@@ -72,8 +72,14 @@ export default function AgentsPanel({ team, selectedProject, selection, onSelect
         next.add(agentId);
         // Fetch sessions when expanding
         if (!agentSessions.has(agentId)) {
-          fetch(`/api/agents/${encodeURIComponent(agentId)}/sessions`)
-            .then((r) => r.json())
+          const authToken = localStorage.getItem('dashboard_auth_token');
+          const headers: Record<string, string> = {};
+          if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+          fetch(`/api/agents/${encodeURIComponent(agentId)}/sessions`, { headers })
+            .then((r) => {
+              if (r.status === 401) { window.dispatchEvent(new Event('auth-required')); return []; }
+              return r.json();
+            })
             .then((sessions: AgentSession[]) => {
               setAgentSessions((prev) => new Map(prev).set(agentId, sessions));
             })

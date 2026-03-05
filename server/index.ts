@@ -6,8 +6,10 @@ import { handleTeamsApi } from './teamsApi.js';
 import { initWebSocket } from './wsServer.js';
 import { startWatching } from './teamsWatcher.js';
 import * as cache from './teamsCache.js';
+import { checkAuth, isAuthEnabled } from './auth.js';
 
 const PORT = Number(process.env.PORT ?? 3001);
+const CORS_ORIGIN = process.env.CORS_ORIGIN ?? '*';
 const DIST_DIR = process.env.DIST_DIR ?? join(import.meta.dirname, '..', 'dist');
 
 const MIME_TYPES: Record<string, string> = {
@@ -52,10 +54,10 @@ async function serveStatic(url: string, res: import('node:http').ServerResponse)
 const server = createServer(async (req, res) => {
   const url = req.url ?? '/';
 
-  // CORS headers for dev
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // CORS headers
+  res.setHeader('Access-Control-Allow-Origin', CORS_ORIGIN);
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   if (req.method === 'OPTIONS') {
     res.writeHead(204);
@@ -63,7 +65,15 @@ const server = createServer(async (req, res) => {
     return;
   }
 
-  // API routes
+  // API routes — require auth
+  if (url.startsWith('/api/')) {
+    if (!checkAuth(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+  }
+
   try {
     const handled = await handleTeamsApi(req, res);
     if (handled) return;
@@ -91,6 +101,9 @@ async function start(): Promise<void> {
   // Start HTTP server
   server.listen(PORT, () => {
     console.log(`[server] Listening on http://localhost:${PORT}`);
+    if (isAuthEnabled()) {
+      console.log('[server] AUTH_TOKEN is set — authentication enabled');
+    }
   });
 
   // Attach WebSocket

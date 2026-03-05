@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import type { AgentLogEntry } from '../types';
 
 const PAGE_SIZE = 50;
+const STORAGE_KEY = 'dashboard_auth_token';
 
 interface UseAgentEntriesResult {
   entries: AgentLogEntry[];
@@ -36,8 +37,15 @@ export function useAgentEntries(
       ? `/api/agents/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(sessionId)}`
       : `/api/agents/${encodeURIComponent(agentId)}/activity?limit=${PAGE_SIZE}`;
 
-    fetch(url)
-      .then((r) => r.json())
+    const authToken = localStorage.getItem(STORAGE_KEY);
+    const headers: Record<string, string> = {};
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+
+    fetch(url, { headers })
+      .then((r) => {
+        if (r.status === 401) { window.dispatchEvent(new Event('auth-required')); return []; }
+        return r.json();
+      })
       .then((data: AgentLogEntry[]) => {
         if (cancelled) return;
         setEntries(data);
@@ -88,10 +96,18 @@ export function useAgentEntries(
     setLoading(true);
     const offset = entries.length;
 
+    const authToken = localStorage.getItem(STORAGE_KEY);
+    const headers: Record<string, string> = {};
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+
     fetch(
       `/api/agents/${encodeURIComponent(agentId)}/activity?limit=${PAGE_SIZE}&offset=${offset}`,
+      { headers },
     )
-      .then((r) => r.json())
+      .then((r) => {
+        if (r.status === 401) { window.dispatchEvent(new Event('auth-required')); return []; }
+        return r.json();
+      })
       .then((data: AgentLogEntry[]) => {
         if (currentAgentId.current !== agentId) return;
         setEntries((prev) => [...data, ...prev]);

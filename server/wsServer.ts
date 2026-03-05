@@ -2,6 +2,7 @@ import type { Server } from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
 import * as cache from './teamsCache.js';
 import type { WsEvent } from '../src/types.js';
+import { checkAuth } from './auth.js';
 
 const HEARTBEAT_INTERVAL = 30_000;
 const PONG_TIMEOUT = 10_000;
@@ -27,7 +28,12 @@ export function initWebSocket(server: Server): void {
 
   console.log('[ws] WebSocket server attached on /ws');
 
-  wss.on('connection', (ws: ExtWebSocket) => {
+  wss.on('connection', (ws: ExtWebSocket, req) => {
+    if (!checkAuth(req)) {
+      ws.close(4401, 'Unauthorized');
+      return;
+    }
+
     ws.isAlive = true;
     const clientCount = wss!.clients.size;
     console.log(`[ws] Client connected (total: ${clientCount})`);

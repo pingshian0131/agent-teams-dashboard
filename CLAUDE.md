@@ -81,7 +81,28 @@ npm run preview    # 預覽正式建置結果
 - `PORT` — 後端伺服器埠號（預設：`3001`）
 - `BACKEND_HOST` — Vite proxy 的後端主機名（預設：`localhost`，Docker 內為 `backend`）
 - `BACKEND_PORT` — Vite proxy 的後端埠號（預設：`3001`）
+- `AUTH_TOKEN` — 設定後啟用認證，未設定時免驗證（local 模式）
+- `CORS_ORIGIN` — CORS `Access-Control-Allow-Origin` 值（預設：`*`，remote 建議設實際 domain）
+
+### 認證機制（`server/auth.ts`）
+
+設定 `AUTH_TOKEN` 環境變數即啟用認證，未設定時行為不變。
+
+- **HTTP API**：`Authorization: Bearer <token>` header，或 `?token=<token>` query param
+- **WebSocket**：連線時帶 `?token=<token>` query param
+- **靜態檔案**：不驗證（讓瀏覽器能載入頁面顯示登入畫面）
+- **前端**：偵測 401 → 顯示 token 輸入畫面（`LoginScreen.tsx`），token 存 `localStorage`
 
 ## 正式環境部署
 
 先建置前端（`npm run build`），再執行 `tsx server/index.ts`。伺服器從 `dist/` 提供靜態檔案（含 SPA fallback），並在同一埠號提供 API/WebSocket 端點。
+
+### Remote 存取
+
+透過 Cloudflare Tunnel 或 Tailscale 等方式開放遠端存取時，務必設定 `AUTH_TOKEN`：
+
+```bash
+AUTH_TOKEN=your-secret-token npm run server
+# 或搭配 CORS 收緊
+AUTH_TOKEN=your-secret-token CORS_ORIGIN=https://your-domain.com npm run server
+```
