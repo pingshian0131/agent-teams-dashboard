@@ -10,6 +10,7 @@ services:
       - ${HOME}/.claude:/root/.claude:ro
     environment:
       - PORT=3001
+      - HOST_HOME=${HOME}
 
   frontend:
     build: .

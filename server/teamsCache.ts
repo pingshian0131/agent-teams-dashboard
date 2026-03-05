@@ -10,6 +10,7 @@ import type {
   FullSnapshot,
   AgentLogEntry,
   AgentSession,
+  ProjectOverview,
 } from '../src/types.js';
 
 const CLAUDE_DIR = join(homedir(), '.claude');
@@ -24,6 +25,7 @@ const tasks = new Map<string, TeamTask[]>();
 const agentEntries = new Map<string, AgentLogEntry[]>();
 const agentOffsets = new Map<string, number>();
 const teamFileMtimes = new Map<string, number>(); // team name -> latest mtime (ms)
+const knownProjectDirs = new Set<string>(); // all project dir names under ~/.claude/projects/
 
 export const onChange = new EventEmitter();
 
@@ -163,6 +165,11 @@ async function refreshAllTasks(): Promise<void> {
 export async function scanAgentJsonl(): Promise<void> {
   const projectDirs = await safeReaddir(PROJECTS_DIR);
 
+  // Track all known project dirs for name resolution
+  for (const d of projectDirs) {
+    knownProjectDirs.add(d);
+  }
+
   for (const projDir of projectDirs) {
     const projPath = join(PROJECTS_DIR, projDir);
     const entries = await safeReaddir(projPath);
@@ -172,7 +179,7 @@ export async function scanAgentJsonl(): Promise<void> {
 
       // Team session JSONL: UUID.jsonl files at project root level
       if (entry.endsWith('.jsonl')) {
-        await readNewEntries(entryPath, true);
+        await readNewEntries(entryPath, true, projDir);
         continue;
       }
 
@@ -181,13 +188,13 @@ export async function scanAgentJsonl(): Promise<void> {
       const files = await safeReaddir(subagentsDir);
       for (const file of files) {
         if (!file.startsWith('agent-') || !file.endsWith('.jsonl')) continue;
-        await readNewEntries(join(subagentsDir, file), false);
+        await readNewEntries(join(subagentsDir, file), false, projDir);
       }
     }
   }
 }
 
-async function readNewEntries(filePath: string, isSessionFile: boolean): Promise<void> {
+async function readNewEntries(filePath: string, isSessionFile: boolean, projectDir?: string): Promise<void> {
   const fileStat = await safeFileStat(filePath);
   if (!fileStat) return;
 
@@ -208,11 +215,11 @@ async function readNewEntries(filePath: string, isSessionFile: boolean): Promise
     try {
       const parsed = JSON.parse(line);
 
-      // For session files, only process entries that belong to a team agent
+      // For session files, only process entries that belong to a team
       if (isSessionFile) {
         const teamName = parsed.teamName;
-        const agentName = parsed.agentName;
-        if (!teamName || !agentName) continue;
+        if (!teamName) continue;
+        const agentName = parsed.agentName || 'team-lead';
 
         // Use team agentId format: name@team
         const fullAgentId = `${agentName}@${teamName}`;
@@ -232,6 +239,7 @@ async function readNewEntries(filePath: string, isSessionFile: boolean): Promise
             model: parsed.message?.model,
           },
           timestamp: parsed.timestamp ?? '',
+          projectDir,
         };
 
         let arr = agentEntries.get(fullAgentId);
@@ -262,6 +270,7 @@ async function readNewEntries(filePath: string, isSessionFile: boolean): Promise
           model: parsed.message?.model,
         },
         timestamp: parsed.timestamp ?? '',
+        projectDir,
       };
 
       if (!entry.agentId) continue;
@@ -333,6 +342,131 @@ function buildTeamOverview(teamName: string): TeamOverview {
   return { config, tasks: teamTasks, taskStats, agentSlugs, lastActivity };
 }
 
+/**
+ * Encode a filesystem path to the Claude project dir format.
+ * /Users/ping → -Users-ping
+ */
+function encodePathPrefix(fsPath: string): string {
+  return '-' + fsPath.replace(/\//g, '-').replace(/^-/, '');
+}
+
+// The home directory prefix in encoded form, used to strip from project dir names.
+// Uses HOST_HOME env var (set in Docker) or falls back to os.homedir().
+const HOME_PREFIX = encodePathPrefix(process.env.HOST_HOME || homedir());
+
+/**
+ * Use the set of all known project dirs to resolve ambiguous dashes.
+ * If "-Users-ping-projects" exists as a project dir, then in
+ * "-Users-ping-projects-agent-teams-dashboard", the "projects" portion
+ * is a directory (path separator), not part of a directory name.
+ *
+ * Returns the last path segment (the actual project directory name).
+ */
+function resolveProjectName(projectDir: string, allProjectDirs: Set<string>): string {
+  if (projectDir === HOME_PREFIX) return '~';
+
+  const prefixWithDash = HOME_PREFIX + '-';
+  if (!projectDir.startsWith(prefixWithDash)) return projectDir;
+
+  const remainder = projectDir.slice(prefixWithDash.length);
+
+  // Try to find the longest known parent directory prefix.
+  // A known dir is a valid parent only if:
+  // 1. It's a strict prefix of projectDir (not equal to it)
+  // 2. No OTHER known dir starts with it + the next dash-segment
+  //    (which would mean the continuation is part of the dir name, not a child)
+  let bestSplit = 0;
+  const parts = remainder.split('-');
+  let accumulated = HOME_PREFIX;
+  for (let i = 0; i < parts.length - 1; i++) {
+    accumulated += '-' + parts[i];
+    if (!allProjectDirs.has(accumulated) || accumulated === projectDir) continue;
+
+    // Check: is there another known dir that starts with accumulated + '-' + nextPart?
+    // If so, accumulated might not be a true parent — the next segment could be part
+    // of a longer directory name at the same level.
+    const nextAccumulated = accumulated + '-' + parts[i + 1];
+    // When nextAccumulated === projectDir, accumulated could be a real parent
+    // (e.g. panamera-python3 → worktree3) or a false parent (e.g. erp-shipment → 2).
+    // Heuristic: accumulated is a real parent if other known dirs also have it as prefix.
+    if (nextAccumulated === projectDir) {
+      const accPrefix = accumulated + '-';
+      const hasOtherChildren = Array.from(allProjectDirs).some(
+        d => d !== projectDir && d.startsWith(accPrefix)
+      );
+      if (hasOtherChildren) {
+        bestSplit = i + 1;
+      }
+      continue;
+    }
+
+    const isFalseParent = allProjectDirs.has(nextAccumulated) &&
+      projectDir.startsWith(nextAccumulated);
+    if (!isFalseParent) {
+      bestSplit = i + 1;
+    }
+  }
+
+  if (bestSplit > 0) {
+    return parts.slice(bestSplit).join('-');
+  }
+  return remainder;
+}
+
+function buildProjectOverviews(): ProjectOverview[] {
+  // Group all agent entries by projectDir
+  const projectMap = new Map<string, Map<string, { slug: string; entries: AgentLogEntry[] }>>();
+
+  for (const [agentId, entries] of agentEntries) {
+    for (const entry of entries) {
+      if (!entry.projectDir) continue;
+      let agentMap = projectMap.get(entry.projectDir);
+      if (!agentMap) {
+        agentMap = new Map();
+        projectMap.set(entry.projectDir, agentMap);
+      }
+      let agentData = agentMap.get(agentId);
+      if (!agentData) {
+        agentData = { slug: entry.slug, entries: [] };
+        agentMap.set(agentId, agentData);
+      }
+      agentData.entries.push(entry);
+      if (entry.slug) agentData.slug = entry.slug;
+    }
+  }
+
+  const projects: ProjectOverview[] = [];
+  for (const [projectDir, agentMap] of projectMap) {
+    let lastActivity = '';
+    const agents: ProjectOverview['agents'] = [];
+
+    for (const [agentId, data] of agentMap) {
+      const lastTs = data.entries.length > 0
+        ? data.entries[data.entries.length - 1].timestamp
+        : '';
+      agents.push({
+        agentId,
+        slug: data.slug || agentId,
+        entryCount: data.entries.length,
+        lastTimestamp: lastTs,
+      });
+      if (lastTs > lastActivity) lastActivity = lastTs;
+    }
+
+    agents.sort((a, b) => b.lastTimestamp.localeCompare(a.lastTimestamp));
+
+    projects.push({
+      projectDir,
+      projectName: resolveProjectName(projectDir, knownProjectDirs),
+      agents,
+      lastActivity,
+    });
+  }
+
+  projects.sort((a, b) => b.lastActivity.localeCompare(a.lastActivity));
+  return projects;
+}
+
 export function getSnapshot(): FullSnapshot {
   const teamOverviews: TeamOverview[] = [];
   const matchedAgentIds = new Set<string>();
@@ -369,7 +503,7 @@ export function getSnapshot(): FullSnapshot {
     }
   }
 
-  return { teams: teamOverviews, unmatchedAgents, agentActivity: activity };
+  return { teams: teamOverviews, unmatchedAgents, agentActivity: activity, projects: buildProjectOverviews() };
 }
 
 // --- Query ---

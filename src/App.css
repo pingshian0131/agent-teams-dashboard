@@ -10,8 +10,8 @@
   --border-primary: #2a2a3e;
   --border-subtle: #222236;
   --text-primary: #e0e0e0;
-  --text-secondary: #888;
-  --text-muted: #555;
+  --text-secondary: #aaa;
+  --text-muted: #777;
   --accent-blue: #58a6ff;
   --accent-green: #00ff88;
   --accent-yellow: #ffd700;
@@ -37,7 +37,7 @@
 
 body {
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.5;
   color: var(--text-primary);
   background: var(--bg-primary);
@@ -52,15 +52,29 @@ body {
   overflow: hidden;
 }
 
+/* === Resize Handle === */
+.resize-handle {
+  width: 4px;
+  cursor: col-resize;
+  background: transparent;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 10;
+  transition: background var(--transition-fast);
+}
+
+.resize-handle:hover,
+.resize-handle:active {
+  background: var(--accent-cyan);
+}
+
 /* === Teams Panel (1st sidebar) === */
 .teams-panel {
-  width: 200px;
-  min-width: 200px;
   background: var(--bg-sidebar);
-  border-right: 1px solid var(--border-primary);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 .teams-panel__header {
@@ -78,6 +92,43 @@ body {
 
 .teams-panel__conn-dot {
   font-size: 10px;
+}
+
+/* === Sidebar Mode Toggle === */
+.sidebar-mode-toggle {
+  display: flex;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  padding: 2px;
+  gap: 2px;
+}
+
+.sidebar-mode-toggle__btn {
+  padding: 4px 10px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+  line-height: 1;
+}
+
+.sidebar-mode-toggle__btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.sidebar-mode-toggle__btn--active {
+  background: var(--bg-active);
+  color: var(--accent-cyan);
+  box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.3);
 }
 
 .teams-panel__nav {
@@ -126,7 +177,7 @@ body {
 .teams-panel__team {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   width: 100%;
   padding: 8px 10px;
   margin-bottom: 2px;
@@ -134,7 +185,7 @@ body {
   background: transparent;
   color: var(--text-primary);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 14px;
   cursor: pointer;
   border-radius: var(--radius-sm);
   border-left: 3px solid transparent;
@@ -207,13 +258,11 @@ body {
 
 /* === Agents Panel (2nd sidebar) === */
 .agents-panel {
-  width: 260px;
-  min-width: 260px;
   background: var(--bg-sidebar-2);
-  border-right: 1px solid var(--border-primary);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 .agents-panel__header {
@@ -297,7 +346,7 @@ body {
   background: transparent;
   color: var(--text-primary);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 14px;
   cursor: pointer;
   border-radius: var(--radius-sm);
   transition: all var(--transition-fast);
@@ -342,7 +391,7 @@ body {
   background: transparent;
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 13px;
   cursor: pointer;
   padding: 0;
   transition: color var(--transition-fast);
@@ -357,18 +406,18 @@ body {
 }
 
 .agents-panel__session-id {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--accent-purple);
   font-family: var(--font-mono);
 }
 
 .agents-panel__session-time {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--text-muted);
 }
 
 .agents-panel__session-count {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--text-muted);
   background: var(--bg-hover);
   padding: 0 4px;
@@ -470,8 +519,8 @@ body {
 .font-mono { font-family: var(--font-mono); }
 .font-sans { font-family: var(--font-sans); }
 .font-bold { font-weight: 600; }
-.text-sm { font-size: 12px; }
-.text-xs { font-size: 11px; }
+.text-sm { font-size: 14px; }
+.text-xs { font-size: 13px; }
 
 .border { border: 1px solid var(--border-primary); }
 .border-b { border-bottom: 1px solid var(--border-primary); }
@@ -790,7 +839,8 @@ body {
 }
 
 .chat-msg--tool-result {
-  border-left-color: var(--text-muted);
+  border-left-color: var(--text-secondary);
+  background: rgba(170, 170, 170, 0.03);
 }
 
 .chat-msg__meta {
@@ -801,7 +851,7 @@ body {
 }
 
 .chat-msg__role {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -811,16 +861,16 @@ body {
 .chat-msg--user .chat-msg__role { color: var(--accent-green); }
 .chat-msg--assistant .chat-msg__role { color: var(--accent-cyan); }
 .chat-msg--tool-use .chat-msg__role { color: var(--accent-yellow); }
-.chat-msg--tool-result .chat-msg__role { color: var(--text-muted); }
+.chat-msg--tool-result .chat-msg__role { color: var(--text-secondary); }
 
 .chat-msg__time {
-  font-size: 10px;
-  color: var(--text-muted);
+  font-size: 12px;
+  color: var(--text-secondary);
   font-family: var(--font-mono);
 }
 
 .chat-msg__body {
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.6;
   word-break: break-word;
 }
@@ -842,7 +892,7 @@ body {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   padding: 8px 10px;
-  font-size: 11px;
+  font-size: 13px;
   white-space: pre-wrap;
   overflow-x: auto;
   color: var(--text-primary);
@@ -888,7 +938,7 @@ body {
   border: 1px solid rgba(255, 215, 0, 0.3);
   color: var(--accent-yellow);
   border-radius: var(--radius-sm);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   font-family: var(--font-mono);
 }
@@ -903,7 +953,7 @@ body {
   border: 1px solid rgba(255, 215, 0, 0.15);
   border-radius: var(--radius-sm);
   padding: 8px 10px;
-  font-size: 11px;
+  font-size: 13px;
   white-space: pre-wrap;
   overflow-x: auto;
   color: var(--text-secondary);
@@ -923,19 +973,19 @@ body {
   background: rgba(255, 68, 68, 0.15);
   color: var(--accent-red);
   border-radius: var(--radius-sm);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   margin-bottom: 4px;
   font-family: var(--font-mono);
 }
 
 .msg-result-body {
-  font-size: 11px;
+  font-size: 13px;
   white-space: pre-wrap;
   overflow-x: auto;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   line-height: 1.5;
-  max-height: 200px;
+  max-height: 400px;
   overflow-y: auto;
 }
 

@@ -34,6 +34,7 @@ export interface AgentLogEntry {
     model?: string;
   };
   timestamp: string;
+  projectDir?: string;
 }
 
 export type MessageContent =
@@ -51,6 +52,14 @@ export interface AgentSession {
   lastTimestamp: string;
 }
 
+// Project overview (for Convos mode)
+export interface ProjectOverview {
+  projectDir: string;
+  projectName: string;
+  agents: { agentId: string; slug: string; entryCount: number; lastTimestamp: string }[];
+  lastActivity: string;
+}
+
 // Aggregated types
 export interface TeamOverview {
   config: TeamConfig;
@@ -64,6 +73,7 @@ export interface FullSnapshot {
   teams: TeamOverview[];
   unmatchedAgents: { agentId: string; slug: string; sessionId: string }[];
   agentActivity: Record<string, AgentLogEntry[]>;
+  projects: ProjectOverview[];
 }
 
 // WebSocket events
@@ -74,9 +84,13 @@ export type WsEvent =
   | { type: 'team_removed'; teamId: string }
   | { type: 'agent_activity'; agentId: string; entries: AgentLogEntry[] };
 
+// Sidebar mode
+export type SidebarMode = 'teams' | 'conversations';
+
 // UI state
 export type ViewSelection =
   | { view: 'overview' }
   | { view: 'team'; teamName: string }
   | { view: 'agent'; agentId: string; agentSlug: string; teamName?: string; sessionId?: string }
-  | { view: 'tasks'; teamName: string };
+  | { view: 'tasks'; teamName: string }
+  | { view: 'project'; projectDir: string };
