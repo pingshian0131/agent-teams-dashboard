@@ -33,6 +33,9 @@
 ### Agent 面板 — 活動詳情
 ![Agent Panel](docs/demo-agent-panel.png)
 
+### 對話模式 — Project > Agents > Sessions
+![Conversations](docs/demo-convos.png)
+
 ## 快速開始
 
 ```bash

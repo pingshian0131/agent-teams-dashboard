@@ -33,6 +33,9 @@ Real-time monitoring dashboard for [Claude Code](https://claude.ai/code) agent t
 ### Agent Panel — Activity Detail
 ![Agent Panel](docs/demo-agent-panel.png)
 
+### Conversations — Project > Agents > Sessions
+![Conversations](docs/demo-convos.png)
+
 ## Quick Start
 
 ```bash
