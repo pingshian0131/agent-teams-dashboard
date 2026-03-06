@@ -10,6 +10,7 @@ Real-time monitoring dashboard for [Claude Code](https://claude.ai/code) agent t
 - **Responsive Design** — Full RWD: mobile (drawer + tab bar), tablet (auto-collapsed sidebar), desktop (three-column)
 - **Team Overview** — Live status cards with status dots, progress bars, and member counts
 - **Agent Sessions** — Per-agent session grouping with expandable timeline
+- **Agent Sort Toggle** — Switch between time-sorted (default) and team-grouped view in Conversations mode
 - **Kanban Task Board** — Pending / In Progress / Completed columns
 - **Agent Activity Monitor** — Real-time messages and tool usage per agent
 - **WebSocket Streaming** — File system changes pushed to browser instantly

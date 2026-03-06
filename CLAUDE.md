@@ -38,7 +38,7 @@ npm run preview    # 預覽正式建置結果
 
 #### 主要元件
 - **Sidebar.tsx（TeamsPanel）** — 左側第一欄，可摺疊（localStorage 持久化）。展開時顯示 team 列表含 status dots（active/idle/done/inactive）、progress bars、member count、底部全域 task 統計；摺疊時顯示 status dot + 首字母 icon-only 模式
-- **AgentsPanel.tsx** — 左側第二欄。顯示選中 team 的 agents 列表、agent status、可展開的 sessions 分組、Task Board 入口按鈕
+- **AgentsPanel.tsx** — 左側第二欄。顯示選中 team 的 agents 列表、agent status、可展開的 sessions 分組、Task Board 入口按鈕。Conversations 模式下有排序切換：`⏱ time`（按時間排序，預設）/ `⚑ grouped`（按 team 分組，localStorage 持久化）
 - **MainPanel.tsx** — 右側主要內容區，根據 `view` 狀態渲染 Overview / Team Detail / Task Board / Agent Activity
 
 ### 後端（`server/`）
