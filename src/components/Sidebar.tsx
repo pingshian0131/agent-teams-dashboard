@@ -107,45 +107,37 @@ export default function Sidebar({
     <aside className={`teams-panel ${isCollapsed ? 'teams-panel--collapsed' : ''}`} style={style}>
       <div className="teams-panel__header">
         <div className="flex items-center justify-between">
-          {isCollapsed ? (
-            <span
-              className="teams-panel__conn-dot"
-              style={{ color: connected ? 'var(--accent-green)' : 'var(--accent-red)', margin: '0 auto' }}
-              title={connected ? 'Connected' : 'Disconnected'}
+          <div className="sidebar-mode-toggle">
+            <button
+              className={`sidebar-mode-toggle__btn ${sidebarMode === 'teams' ? 'sidebar-mode-toggle__btn--active' : ''}`}
+              onClick={() => onModeChange('teams')}
+              title="Teams"
             >
-              ●
-            </span>
-          ) : (
-            <>
-              <div className="sidebar-mode-toggle">
-                <button
-                  className={`sidebar-mode-toggle__btn ${sidebarMode === 'teams' ? 'sidebar-mode-toggle__btn--active' : ''}`}
-                  onClick={() => onModeChange('teams')}
-                >
-                  Teams
-                </button>
-                <button
-                  className={`sidebar-mode-toggle__btn ${sidebarMode === 'conversations' ? 'sidebar-mode-toggle__btn--active' : ''}`}
-                  onClick={() => onModeChange('conversations')}
-                >
-                  Convos
-                </button>
-              </div>
-              <span className="flex items-center gap-2">
-                {countdown !== null && (
-                  <span className="text-xs text-muted" title="Next refresh">
-                    {countdown}s
-                  </span>
-                )}
-                <span
-                  className="teams-panel__conn-dot"
-                  style={{ color: connected ? 'var(--accent-green)' : 'var(--accent-red)' }}
-                  title={connected ? 'Connected' : 'Disconnected'}
-                >
-                  ●
+              {isCollapsed ? 'T' : 'Teams'}
+            </button>
+            <button
+              className={`sidebar-mode-toggle__btn ${sidebarMode === 'conversations' ? 'sidebar-mode-toggle__btn--active' : ''}`}
+              onClick={() => onModeChange('conversations')}
+              title="Conversations"
+            >
+              {isCollapsed ? 'C' : 'Convos'}
+            </button>
+          </div>
+          {!isCollapsed && (
+            <span className="flex items-center gap-2">
+              {countdown !== null && (
+                <span className="text-xs text-muted" title="Next refresh">
+                  {countdown}s
                 </span>
+              )}
+              <span
+                className="teams-panel__conn-dot"
+                style={{ color: connected ? 'var(--accent-green)' : 'var(--accent-red)' }}
+                title={connected ? 'Connected' : 'Disconnected'}
+              >
+                ●
               </span>
-            </>
+            </span>
           )}
         </div>
         <button

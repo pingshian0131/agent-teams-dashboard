@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { TeamOverview } from '../src/types.js';
 import * as cache from './teamsCache.js';
+import { searchConversations } from './search.js';
 
 function json(res: ServerResponse, data: unknown, status = 200): void {
   res.writeHead(status, { 'Content-Type': 'application/json' });
@@ -94,6 +95,34 @@ export async function handleTeamsApi(
       offset && !isNaN(offset) && offset >= 0 ? offset : undefined,
     );
     json(res, entries);
+    return true;
+  }
+
+  // GET /api/search?q=keyword&project=projectDir&limit=50&days=30
+  if (path === '/api/search') {
+    const q = url.searchParams.get('q') ?? '';
+    const project = url.searchParams.get('project') ?? undefined;
+    const limitParam = url.searchParams.get('limit');
+    const daysParam = url.searchParams.get('days');
+    const limit = limitParam ? parseInt(limitParam, 10) : undefined;
+    const maxAgeDays = daysParam ? parseInt(daysParam, 10) : undefined;
+
+    if (!q || q.length < 2) {
+      json(res, { error: 'Query must be at least 2 characters' }, 400);
+      return true;
+    }
+
+    try {
+      const results = await searchConversations({
+        query: q,
+        projectDir: project,
+        limit: limit && !isNaN(limit) && limit > 0 ? limit : undefined,
+        maxAgeDays: maxAgeDays && !isNaN(maxAgeDays) && maxAgeDays > 0 ? maxAgeDays : undefined,
+      });
+      json(res, results);
+    } catch (err) {
+      json(res, { error: 'Search failed' }, 500);
+    }
     return true;
   }
 

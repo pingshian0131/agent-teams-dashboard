@@ -7,7 +7,7 @@ import AgentsPanel from './components/AgentsPanel';
 import MainPanel from './components/MainPanel';
 import LoginScreen from './components/LoginScreen';
 
-const COLLAPSED_WIDTH = 48;
+const COLLAPSED_WIDTH = 88;
 
 function useResizable(initial: number, min: number, max: number) {
   const [width, setWidth] = useState(initial);
@@ -50,10 +50,18 @@ function useResizable(initial: number, min: number, max: number) {
 export default function App() {
   const { token, needsAuth, setToken } = useAuth();
   const { snapshot, connected, lastUpdated } = useTeamsSocket(token);
-  const [selection, setSelection] = useState<ViewSelection>({ view: 'overview' });
+  const [selection, setSelection] = useState<ViewSelection>({ view: 'project', projectDir: '' });
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
-  const [sidebarMode, setSidebarMode] = useState<SidebarMode>('teams');
+  const [sidebarMode, _setSidebarMode] = useState<SidebarMode>('conversations');
+  const handleModeChange = useCallback((mode: SidebarMode) => {
+    _setSidebarMode(mode);
+    if (mode === 'conversations') {
+      setSelection({ view: 'project', projectDir: '' });
+    } else if (mode === 'teams') {
+      setSelection({ view: 'overview' });
+    }
+  }, []);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
     return localStorage.getItem('sidebar-collapsed') === 'true';
   });
@@ -96,7 +104,7 @@ export default function App() {
         selectedProject={selectedProject}
         onSelect={handleSelect}
         sidebarMode={sidebarMode}
-        onModeChange={setSidebarMode}
+        onModeChange={handleModeChange}
         isCollapsed={sidebarCollapsed}
         onCollapseChange={handleCollapseChange}
         style={sidebarCollapsed
@@ -112,7 +120,7 @@ export default function App() {
         selectedProject={project}
         selection={selection}
         onSelect={handleSelect}
-        onModeChange={setSidebarMode}
+        onModeChange={handleModeChange}
         sidebarMode={sidebarMode}
         style={{ width: panel2.width, minWidth: panel2.width }}
       />
@@ -121,6 +129,8 @@ export default function App() {
         selection={selection}
         snapshot={snapshot}
         onSelect={handleSelect}
+        sidebarMode={sidebarMode}
+        selectedProject={selectedProject}
       />
     </div>
   );

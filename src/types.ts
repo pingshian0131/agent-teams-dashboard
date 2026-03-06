@@ -89,10 +89,23 @@ export type WsEvent =
 // Sidebar mode
 export type SidebarMode = 'teams' | 'conversations';
 
+// Search
+export interface SearchResult {
+  agentId: string;
+  slug: string;
+  sessionId: string;
+  projectDir: string;
+  timestamp: string;
+  type: 'user' | 'assistant';
+  snippet: string;
+  matchField: 'text' | 'tool_use' | 'tool_result';
+}
+
 // UI state
 export type ViewSelection =
   | { view: 'overview' }
   | { view: 'team'; teamName: string }
   | { view: 'agent'; agentId: string; agentSlug: string; teamName?: string; sessionId?: string }
   | { view: 'tasks'; teamName: string }
-  | { view: 'project'; projectDir: string };
+  | { view: 'project'; projectDir: string }
+  | { view: 'search'; query: string; projectDir?: string };

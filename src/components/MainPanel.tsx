@@ -1,16 +1,21 @@
-import type { FullSnapshot, ViewSelection } from '../types';
+import type { FullSnapshot, ViewSelection, SidebarMode } from '../types';
 import OverviewPanel from './OverviewPanel';
+import ConvosOverviewPanel from './ConvosOverviewPanel';
 import AgentPanel from './AgentPanel';
 import TaskBoard from './TaskBoard';
 import EmptyState from './EmptyState';
+import SearchResults from './SearchResults';
+import SearchBar from './SearchBar';
 
 interface MainPanelProps {
   selection: ViewSelection;
   snapshot: FullSnapshot | null;
   onSelect: (sel: ViewSelection) => void;
+  sidebarMode: SidebarMode;
+  selectedProject: string | null;
 }
 
-export default function MainPanel({ selection, snapshot, onSelect }: MainPanelProps) {
+export default function MainPanel({ selection, snapshot, onSelect, sidebarMode, selectedProject }: MainPanelProps) {
   if (!snapshot) {
     return (
       <main className="main-panel">
@@ -46,13 +51,34 @@ export default function MainPanel({ selection, snapshot, onSelect }: MainPanelPr
         return <TaskBoard tasks={team.tasks} teamName={selection.teamName} />;
       }
 
+      case 'search':
+        return (
+          <SearchResults
+            query={selection.query}
+            projectDir={selection.projectDir}
+            projects={snapshot.projects ?? []}
+            onSelect={onSelect}
+          />
+        );
+
       case 'project':
-        return <EmptyState />;
+        return <ConvosOverviewPanel projects={snapshot.projects ?? []} onSelect={onSelect} />;
 
       default:
         return <EmptyState />;
     }
   };
 
-  return <main className="main-panel">{renderContent()}</main>;
+  return (
+    <main className="main-panel">
+      {sidebarMode === 'conversations' && (
+        <SearchBar
+          projects={snapshot.projects ?? []}
+          selectedProject={selectedProject ?? undefined}
+          onSearch={onSelect}
+        />
+      )}
+      {renderContent()}
+    </main>
+  );
 }
