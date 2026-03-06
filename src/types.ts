@@ -67,6 +67,7 @@ export interface TeamOverview {
   taskStats: { total: number; pending: number; inProgress: number; completed: number };
   agentSlugs: Record<string, string>;
   lastActivity: string;
+  removedAt?: string;
 }
 
 export interface FullSnapshot {

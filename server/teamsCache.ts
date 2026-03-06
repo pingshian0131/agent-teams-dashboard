@@ -37,6 +37,7 @@ interface TeamLeadInfo {
 }
 const teamLeadSessions = new Map<string, TeamLeadInfo>(); // leadSessionId -> team info
 const subagentToMember = new Map<string, string>(); // subagent filePath -> memberAgentId
+const removedTeams = new Map<string, { config: TeamConfig; removedAt: string }>(); // teams deleted from disk
 
 export const onChange = new EventEmitter();
 
@@ -119,12 +120,20 @@ export async function refreshTeams(): Promise<void> {
     }
   }
 
-  // Remove teams that no longer exist on disk
-  for (const name of teams.keys()) {
+  // Move deleted teams to removedTeams instead of discarding
+  for (const [name, config] of teams) {
     if (!currentNames.has(name)) {
+      if (!removedTeams.has(name)) {
+        removedTeams.set(name, { config, removedAt: new Date().toISOString() });
+      }
       teams.delete(name);
       teamFileMtimes.delete(name);
     }
+  }
+
+  // If a removed team reappears on disk, restore it
+  for (const name of currentNames) {
+    removedTeams.delete(name);
   }
 }
 
@@ -410,8 +419,8 @@ async function readNewEntries(filePath: string, isSessionFile: boolean, projectD
 
 // --- Snapshot assembly ---
 
-function buildTeamOverview(teamName: string): TeamOverview {
-  const stored = teams.get(teamName) ?? { name: teamName, members: [] };
+function buildTeamOverview(teamName: string, removedAt?: string): TeamOverview {
+  const stored = teams.get(teamName) ?? removedTeams.get(teamName)?.config ?? { name: teamName, members: [] };
   // Clone so we can add dynamic members without mutating the cache
   const config: TeamConfig = { ...stored, members: [...stored.members] };
   const teamTasks = tasks.get(teamName) ?? [];
@@ -462,7 +471,9 @@ function buildTeamOverview(teamName: string): TeamOverview {
     }
   }
 
-  return { config, tasks: teamTasks, taskStats, agentSlugs, lastActivity };
+  const overview: TeamOverview = { config, tasks: teamTasks, taskStats, agentSlugs, lastActivity };
+  if (removedAt) overview.removedAt = removedAt;
+  return overview;
 }
 
 /**
@@ -612,6 +623,20 @@ export function getSnapshot(): FullSnapshot {
     }
   }
 
+  // Include removed teams (history retention)
+  for (const [teamName, { removedAt }] of removedTeams) {
+    const overview = buildTeamOverview(teamName, removedAt);
+    teamOverviews.push(overview);
+    for (const member of overview.config.members) {
+      matchedAgentIds.add(member.agentId);
+      matchedAgentIds.add(member.agentId.split('@')[0]);
+      const entries = agentEntries.get(member.agentId) ?? agentEntries.get(member.agentId.split('@')[0]);
+      if (entries && entries.length > 0) {
+        activity[member.agentId] = entries;
+      }
+    }
+  }
+
   // Find unmatched agents
   const unmatchedAgents: { agentId: string; slug: string; sessionId: string }[] = [];
   for (const [agentId, entries] of agentEntries) {
@@ -635,6 +660,16 @@ export function getLeanSnapshot(): FullSnapshot {
 
   for (const teamName of teams.keys()) {
     const overview = buildTeamOverview(teamName);
+    teamOverviews.push(overview);
+    for (const member of overview.config.members) {
+      matchedAgentIds.add(member.agentId);
+      matchedAgentIds.add(member.agentId.split('@')[0]);
+    }
+  }
+
+  // Include removed teams (history retention)
+  for (const [teamName, { removedAt }] of removedTeams) {
+    const overview = buildTeamOverview(teamName, removedAt);
     teamOverviews.push(overview);
     for (const member of overview.config.members) {
       matchedAgentIds.add(member.agentId);

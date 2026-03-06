@@ -34,6 +34,7 @@ function useRefreshCountdown(lastUpdated: number | null): number | null {
 type TeamStatus = 'active' | 'idle' | 'done' | 'inactive';
 
 function deriveStatus(team: TeamOverview): TeamStatus {
+  if (team.removedAt) return 'inactive';
   const { lastActivity, taskStats } = team;
   if (!lastActivity) return 'inactive';
   const elapsed = Date.now() - new Date(lastActivity).getTime();
