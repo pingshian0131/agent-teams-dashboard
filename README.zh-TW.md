@@ -6,7 +6,7 @@
 
 ## 功能
 
-- **雙側邊欄導航** — 三欄式佈局：TeamsPanel → AgentsPanel → MainPanel
+- **雙側邊欄導航** — 三欄式佈局：TeamsPanel（可摺疊）→ AgentsPanel → MainPanel
 - **團隊總覽** — 即時狀態卡片，含 status dots、進度條、成員數
 - **Agent Sessions** — 按 agent 分組的 session 時間軸，可展開檢視
 - **看板式任務面板** — Pending / In Progress / Completed 三欄式任務追蹤
@@ -18,7 +18,7 @@
 ```
 ┌──────────────┬────────────────┬──────────────────────┐
 │ TeamsPanel   │ AgentsPanel    │ MainPanel            │
-│ (200px)      │ (260px)        │ (flex: 1)            │
+│ (collapsible)│ (260px)        │ (flex: 1)            │
 └──────────────┴────────────────┴──────────────────────┘
 ```
 

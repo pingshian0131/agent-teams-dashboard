@@ -7,6 +7,8 @@ import AgentsPanel from './components/AgentsPanel';
 import MainPanel from './components/MainPanel';
 import LoginScreen from './components/LoginScreen';
 
+const COLLAPSED_WIDTH = 48;
+
 function useResizable(initial: number, min: number, max: number) {
   const [width, setWidth] = useState(initial);
   const dragging = useRef(false);
@@ -52,6 +54,14 @@ export default function App() {
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>('teams');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    return localStorage.getItem('sidebar-collapsed') === 'true';
+  });
+
+  const handleCollapseChange = useCallback((collapsed: boolean) => {
+    setSidebarCollapsed(collapsed);
+    localStorage.setItem('sidebar-collapsed', String(collapsed));
+  }, []);
 
   const panel1 = useResizable(260, 120, 400);
   const panel2 = useResizable(260, 160, 500);
@@ -87,9 +97,16 @@ export default function App() {
         onSelect={handleSelect}
         sidebarMode={sidebarMode}
         onModeChange={setSidebarMode}
-        style={{ width: panel1.width, minWidth: panel1.width }}
+        isCollapsed={sidebarCollapsed}
+        onCollapseChange={handleCollapseChange}
+        style={sidebarCollapsed
+          ? { width: COLLAPSED_WIDTH, minWidth: COLLAPSED_WIDTH }
+          : { width: panel1.width, minWidth: panel1.width }
+        }
       />
-      <div className="resize-handle" onMouseDown={panel1.onMouseDown} />
+      {!sidebarCollapsed && (
+        <div className="resize-handle" onMouseDown={panel1.onMouseDown} />
+      )}
       <AgentsPanel
         team={team}
         selectedProject={project}

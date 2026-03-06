@@ -68,6 +68,12 @@ body {
   background: var(--accent-cyan);
 }
 
+/* === Sidebar Collapse Transition === */
+.app-container > .teams-panel,
+.app-container > .agents-panel {
+  transition: width 200ms ease, min-width 200ms ease;
+}
+
 /* === Teams Panel (1st sidebar) === */
 .teams-panel {
   background: var(--bg-sidebar);
@@ -75,6 +81,7 @@ body {
   flex-direction: column;
   overflow: hidden;
   flex-shrink: 0;
+  transition: width 200ms ease;
 }
 
 .teams-panel__header {
@@ -254,6 +261,71 @@ body {
 .teams-panel__footer-stats {
   display: flex;
   gap: 10px;
+}
+
+/* === Teams Panel Collapsed State === */
+.teams-panel--collapsed {
+  width: 48px !important;
+}
+
+.teams-panel--collapsed .teams-panel__header {
+  padding: 10px 6px;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.teams-panel--collapsed .teams-panel__nav {
+  padding: 4px;
+}
+
+.teams-panel--collapsed .teams-panel__nav-item {
+  justify-content: center;
+  padding: 8px;
+  gap: 0;
+}
+
+.teams-panel--collapsed .teams-panel__team {
+  padding: 6px;
+  align-items: center;
+}
+
+.teams-panel__team-collapsed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+}
+
+.teams-panel__team-initial {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  line-height: 1;
+}
+
+.teams-panel__collapse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 4px 0;
+  margin-top: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 16px;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+  line-height: 1;
+}
+
+.teams-panel__collapse-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
 }
 
 /* === Agents Panel (2nd sidebar) === */

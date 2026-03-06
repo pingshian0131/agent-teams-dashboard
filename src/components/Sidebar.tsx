@@ -12,6 +12,8 @@ interface SidebarProps {
   sidebarMode: SidebarMode;
   onModeChange: (mode: SidebarMode) => void;
   style?: React.CSSProperties;
+  isCollapsed: boolean;
+  onCollapseChange: (collapsed: boolean) => void;
 }
 
 const REFRESH_INTERVAL = 5;
@@ -79,6 +81,8 @@ export default function Sidebar({
   sidebarMode,
   onModeChange,
   style,
+  isCollapsed,
+  onCollapseChange,
 }: SidebarProps) {
   const teams = snapshot?.teams ?? [];
   const projects = snapshot?.projects ?? [];
@@ -100,38 +104,57 @@ export default function Sidebar({
   }, []);
 
   return (
-    <aside className="teams-panel" style={style}>
+    <aside className={`teams-panel ${isCollapsed ? 'teams-panel--collapsed' : ''}`} style={style}>
       <div className="teams-panel__header">
         <div className="flex items-center justify-between">
-          <div className="sidebar-mode-toggle">
-            <button
-              className={`sidebar-mode-toggle__btn ${sidebarMode === 'teams' ? 'sidebar-mode-toggle__btn--active' : ''}`}
-              onClick={() => onModeChange('teams')}
-            >
-              Teams
-            </button>
-            <button
-              className={`sidebar-mode-toggle__btn ${sidebarMode === 'conversations' ? 'sidebar-mode-toggle__btn--active' : ''}`}
-              onClick={() => onModeChange('conversations')}
-            >
-              Convos
-            </button>
-          </div>
-          <span className="flex items-center gap-2">
-            {countdown !== null && (
-              <span className="text-xs text-muted" title="Next refresh">
-                {countdown}s
-              </span>
-            )}
+          {isCollapsed ? (
             <span
               className="teams-panel__conn-dot"
-              style={{ color: connected ? 'var(--accent-green)' : 'var(--accent-red)' }}
+              style={{ color: connected ? 'var(--accent-green)' : 'var(--accent-red)', margin: '0 auto' }}
               title={connected ? 'Connected' : 'Disconnected'}
             >
               ●
             </span>
-          </span>
+          ) : (
+            <>
+              <div className="sidebar-mode-toggle">
+                <button
+                  className={`sidebar-mode-toggle__btn ${sidebarMode === 'teams' ? 'sidebar-mode-toggle__btn--active' : ''}`}
+                  onClick={() => onModeChange('teams')}
+                >
+                  Teams
+                </button>
+                <button
+                  className={`sidebar-mode-toggle__btn ${sidebarMode === 'conversations' ? 'sidebar-mode-toggle__btn--active' : ''}`}
+                  onClick={() => onModeChange('conversations')}
+                >
+                  Convos
+                </button>
+              </div>
+              <span className="flex items-center gap-2">
+                {countdown !== null && (
+                  <span className="text-xs text-muted" title="Next refresh">
+                    {countdown}s
+                  </span>
+                )}
+                <span
+                  className="teams-panel__conn-dot"
+                  style={{ color: connected ? 'var(--accent-green)' : 'var(--accent-red)' }}
+                  title={connected ? 'Connected' : 'Disconnected'}
+                >
+                  ●
+                </span>
+              </span>
+            </>
+          )}
         </div>
+        <button
+          className="teams-panel__collapse-btn"
+          onClick={() => onCollapseChange(!isCollapsed)}
+          title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          {isCollapsed ? '›' : '‹'}
+        </button>
       </div>
 
       {sidebarMode === 'teams' ? (
@@ -140,14 +163,15 @@ export default function Sidebar({
             <button
               className={`teams-panel__nav-item ${selection.view === 'overview' ? 'teams-panel__nav-item--active' : ''}`}
               onClick={() => onSelect({ view: 'overview' })}
+              title="Overview"
             >
               <span className="teams-panel__nav-icon">◈</span>
-              <span>Overview</span>
+              {!isCollapsed && <span>Overview</span>}
             </button>
 
             <div className="teams-panel__divider" />
 
-            {teams.length === 0 && (
+            {teams.length === 0 && !isCollapsed && (
               <div className="text-muted text-xs" style={{ padding: '12px 8px' }}>
                 No active teams
               </div>
@@ -165,39 +189,53 @@ export default function Sidebar({
                   key={name}
                   className={`teams-panel__team ${isSelected ? 'teams-panel__team--active' : ''}`}
                   onClick={() => onSelect({ view: 'team', teamName: name })}
+                  title={isCollapsed ? name : undefined}
                 >
-                  <div className="teams-panel__team-row">
-                    <span className="teams-panel__team-dot" style={{ color: statusColors[status] }}>
-                      {status === 'active' ? '◉' : '●'}
-                    </span>
-                    <span className="teams-panel__team-name truncate">{name}</span>
-                    <span className="text-xs text-muted">{team.config.members.length}</span>
-                  </div>
-                  <div className="teams-panel__team-progress">
-                    <div className="teams-panel__team-bar">
-                      <div className="teams-panel__team-bar-fill" style={{ width: `${pct}%` }} />
+                  {isCollapsed ? (
+                    <div className="teams-panel__team-collapsed">
+                      <span className="teams-panel__team-dot" style={{ color: statusColors[status] }}>
+                        {status === 'active' ? '◉' : '●'}
+                      </span>
+                      <span className="teams-panel__team-initial">{name.charAt(0).toUpperCase()}</span>
                     </div>
-                    <span className="teams-panel__team-pct text-xs text-muted">
-                      {taskStats.completed}/{taskStats.total}
-                    </span>
-                  </div>
+                  ) : (
+                    <>
+                      <div className="teams-panel__team-row">
+                        <span className="teams-panel__team-dot" style={{ color: statusColors[status] }}>
+                          {status === 'active' ? '◉' : '●'}
+                        </span>
+                        <span className="teams-panel__team-name truncate">{name}</span>
+                        <span className="text-xs text-muted">{team.config.members.length}</span>
+                      </div>
+                      <div className="teams-panel__team-progress">
+                        <div className="teams-panel__team-bar">
+                          <div className="teams-panel__team-bar-fill" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="teams-panel__team-pct text-xs text-muted">
+                          {taskStats.completed}/{taskStats.total}
+                        </span>
+                      </div>
+                    </>
+                  )}
                 </button>
               );
             })}
           </nav>
 
-          <div className="teams-panel__footer">
-            <div className="teams-panel__footer-stats text-xs text-muted">
-              <span title="Pending">⏳ {totalStats.pending}</span>
-              <span title="In Progress">⚡ {totalStats.inProgress}</span>
-              <span title="Completed">✓ {totalStats.completed}</span>
+          {!isCollapsed && (
+            <div className="teams-panel__footer">
+              <div className="teams-panel__footer-stats text-xs text-muted">
+                <span title="Pending">⏳ {totalStats.pending}</span>
+                <span title="In Progress">⚡ {totalStats.inProgress}</span>
+                <span title="Completed">✓ {totalStats.completed}</span>
+              </div>
             </div>
-          </div>
+          )}
         </>
       ) : (
         <>
           <nav className="teams-panel__nav">
-            {projects.length === 0 && (
+            {projects.length === 0 && !isCollapsed && (
               <div className="text-muted text-xs" style={{ padding: '12px 8px' }}>
                 No projects
               </div>
@@ -206,32 +244,53 @@ export default function Sidebar({
             {projects.map((proj) => {
               const isSelected = selectedProject === proj.projectDir;
               const agentCount = proj.agents.length;
+              const projElapsed = proj.lastActivity
+                ? Date.now() - new Date(proj.lastActivity).getTime()
+                : Infinity;
+              const projStatus: TeamStatus = projElapsed < 60_000 ? 'active' : projElapsed < 3_600_000 ? 'idle' : 'inactive';
 
               return (
                 <button
                   key={proj.projectDir}
                   className={`teams-panel__team ${isSelected ? 'teams-panel__team--active' : ''}`}
                   onClick={() => onSelect({ view: 'project', projectDir: proj.projectDir })}
+                  title={isCollapsed ? proj.projectName : undefined}
                 >
-                  <div className="teams-panel__team-row">
-                    <span className="teams-panel__team-name truncate">{proj.projectName}</span>
-                    <span className="text-secondary" style={{ fontSize: 13 }}>{agentCount}</span>
-                  </div>
-                  {proj.lastActivity && (
-                    <div className="text-secondary" style={{ fontSize: 13, paddingLeft: 2 }}>
-                      {formatTimestamp(proj.lastActivity)}
+                  {isCollapsed ? (
+                    <div className="teams-panel__team-collapsed">
+                      <span className="teams-panel__team-dot" style={{ color: statusColors[projStatus] }}>
+                        {projStatus === 'active' ? '◉' : '●'}
+                      </span>
+                      <span className="teams-panel__team-initial">{proj.projectName.charAt(0).toUpperCase()}</span>
                     </div>
+                  ) : (
+                    <>
+                      <div className="teams-panel__team-row">
+                        <span className="teams-panel__team-dot" style={{ color: statusColors[projStatus] }}>
+                          {projStatus === 'active' ? '◉' : '●'}
+                        </span>
+                        <span className="teams-panel__team-name truncate">{proj.projectName}</span>
+                        <span className="text-secondary" style={{ fontSize: 13 }}>{agentCount}</span>
+                      </div>
+                      {proj.lastActivity && (
+                        <div className="text-secondary" style={{ fontSize: 13, paddingLeft: 2 }}>
+                          {formatTimestamp(proj.lastActivity)}
+                        </div>
+                      )}
+                    </>
                   )}
                 </button>
               );
             })}
           </nav>
 
-          <div className="teams-panel__footer">
-            <div className="teams-panel__footer-stats text-xs text-muted">
-              <span>{projects.length} project{projects.length !== 1 ? 's' : ''}</span>
+          {!isCollapsed && (
+            <div className="teams-panel__footer">
+              <div className="teams-panel__footer-stats text-xs text-muted">
+                <span>{projects.length} project{projects.length !== 1 ? 's' : ''}</span>
+              </div>
             </div>
-          </div>
+          )}
         </>
       )}
     </aside>

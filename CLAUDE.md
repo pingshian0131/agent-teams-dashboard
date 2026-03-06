@@ -29,13 +29,13 @@ npm run preview    # 預覽正式建置結果
 
 ### 前端（`src/`）
 - **React 19 + TypeScript**，使用 Vite 6 建置
-- **三欄式雙側邊欄佈局**：TeamsPanel（200px）→ AgentsPanel（260px）→ MainPanel（flex: 1）
+- **三欄式雙側邊欄佈局**：TeamsPanel（可摺疊，展開 260px / 摺疊 48px icon-only）→ AgentsPanel（260px）→ MainPanel（flex: 1）
 - `useTeamsSocket` hook（`src/hooks/useTeamsSocket.ts`）— 單一 WebSocket 連線管理所有應用程式狀態（snapshot、連線狀態、agent activity 快取），無外部狀態管理套件
 - 頁面路由為字串型別（App.tsx 的 `view` 狀態）：`'overview'` | `'team'` | `'tasks'` | `'agent'`
 - 深色終端機主題，使用 CSS custom properties（JetBrains Mono / Fira Code 字型）
 
 #### 主要元件
-- **Sidebar.tsx（TeamsPanel）** — 左側第一欄。team 列表含 status dots（active/idle/done/inactive）、progress bars、member count。底部顯示全域 task 統計
+- **Sidebar.tsx（TeamsPanel）** — 左側第一欄，可摺疊（localStorage 持久化）。展開時顯示 team 列表含 status dots（active/idle/done/inactive）、progress bars、member count、底部全域 task 統計；摺疊時顯示 status dot + 首字母 icon-only 模式
 - **AgentsPanel.tsx** — 左側第二欄。顯示選中 team 的 agents 列表、agent status、可展開的 sessions 分組、Task Board 入口按鈕
 - **MainPanel.tsx** — 右側主要內容區，根據 `view` 狀態渲染 Overview / Team Detail / Task Board / Agent Activity
 
@@ -51,7 +51,7 @@ npm run preview    # 預覽正式建置結果
 ```
 ┌──────────────┬────────────────┬──────────────────────┐
 │ TeamsPanel   │ AgentsPanel    │ MainPanel            │
-│ (200px)      │ (260px)        │ (flex: 1)            │
+│ (collapsible)│ (260px)        │ (flex: 1)            │
 │ Sidebar.tsx  │ AgentsPanel.tsx│ MainPanel.tsx         │
 └──────────────┴────────────────┴──────────────────────┘
 ```
