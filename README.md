@@ -7,6 +7,7 @@ Real-time monitoring dashboard for [Claude Code](https://claude.ai/code) agent t
 ## Features
 
 - **Dual-Sidebar Navigation** — Three-panel layout: TeamsPanel (collapsible) → AgentsPanel → MainPanel
+- **Responsive Design** — Full RWD: mobile (drawer + tab bar), tablet (auto-collapsed sidebar), desktop (three-column)
 - **Team Overview** — Live status cards with status dots, progress bars, and member counts
 - **Agent Sessions** — Per-agent session grouping with expandable timeline
 - **Kanban Task Board** — Pending / In Progress / Completed columns
@@ -16,10 +17,20 @@ Real-time monitoring dashboard for [Claude Code](https://claude.ai/code) agent t
 ### Layout
 
 ```
+Desktop (> 1024px):
 ┌──────────────┬────────────────┬──────────────────────┐
 │ TeamsPanel   │ AgentsPanel    │ MainPanel            │
 │ (collapsible)│ (260px)        │ (flex: 1)            │
 └──────────────┴────────────────┴──────────────────────┘
+
+Mobile (< 768px):                Tablet (768-1024px):
+┌────────────────────┐           ┌────────┬──────┬─────────┐
+│ [☰] Title      [●] │           │ 88px   │200px │ flex: 1 │
+├────────────────────┤           │icon-only│      │         │
+│    MainPanel       │           └────────┴──────┴─────────┘
+├────────────────────┤
+│ Teams│Agents│Content│
+└────────────────────┘
 ```
 
 ## Demo

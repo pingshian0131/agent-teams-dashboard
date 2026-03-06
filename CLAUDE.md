@@ -29,8 +29,10 @@ npm run preview    # 預覽正式建置結果
 
 ### 前端（`src/`）
 - **React 19 + TypeScript**，使用 Vite 6 建置
-- **三欄式雙側邊欄佈局**：TeamsPanel（可摺疊，展開 260px / 摺疊 48px icon-only）→ AgentsPanel（260px）→ MainPanel（flex: 1）
+- **三欄式雙側邊欄佈局**：TeamsPanel（可摺疊，展開 260px / 摺疊 88px icon-only）→ AgentsPanel（260px）→ MainPanel（flex: 1）
+- **RWD 響應式設計**：三段式斷點 — Mobile（< 768px，單欄 + drawer + tab bar）、Tablet（768-1024px，sidebar icon-only + agents 200px）、Desktop（> 1024px，現有三欄）
 - `useTeamsSocket` hook（`src/hooks/useTeamsSocket.ts`）— 單一 WebSocket 連線管理所有應用程式狀態（snapshot、連線狀態、agent activity 快取），無外部狀態管理套件
+- `useResponsive` hook（`src/hooks/useResponsive.ts`）— `matchMedia` 偵測斷點，回傳 `isMobile` / `isTablet` / `isDesktop`
 - 頁面路由為字串型別（App.tsx 的 `view` 狀態）：`'overview'` | `'team'` | `'tasks'` | `'agent'`
 - 深色終端機主題，使用 CSS custom properties（JetBrains Mono / Fira Code 字型）
 
@@ -49,11 +51,29 @@ npm run preview    # 預覽正式建置結果
 
 ### 佈局結構
 ```
+Desktop (> 1024px):
 ┌──────────────┬────────────────┬──────────────────────┐
 │ TeamsPanel   │ AgentsPanel    │ MainPanel            │
 │ (collapsible)│ (260px)        │ (flex: 1)            │
 │ Sidebar.tsx  │ AgentsPanel.tsx│ MainPanel.tsx         │
 └──────────────┴────────────────┴──────────────────────┘
+
+Tablet (768-1024px):
+┌────────┬──────────┬────────────────────────────────┐
+│ Teams  │ Agents   │ MainPanel                      │
+│ 88px   │ 200px    │ (flex: 1)                      │
+│icon-only│          │                                │
+└────────┴──────────┴────────────────────────────────┘
+
+Mobile (< 768px):
+┌────────────────────────────────┐
+│ [☰] Title                  [●] │  ← Mobile Header (48px)
+├────────────────────────────────┤
+│         MainPanel              │
+├────────────────────────────────┤
+│  Teams  │  Agents  │  Content  │  ← Tab Bar (56px)
+└────────────────────────────────┘
+  + overlay drawer for sidebars
 ```
 
 ### 資料流

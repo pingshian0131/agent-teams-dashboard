@@ -14,6 +14,7 @@ interface SidebarProps {
   style?: React.CSSProperties;
   isCollapsed: boolean;
   onCollapseChange: (collapsed: boolean) => void;
+  className?: string;
 }
 
 const REFRESH_INTERVAL = 5;
@@ -83,6 +84,7 @@ export default function Sidebar({
   style,
   isCollapsed,
   onCollapseChange,
+  className = '',
 }: SidebarProps) {
   const teams = snapshot?.teams ?? [];
   const projects = snapshot?.projects ?? [];
@@ -104,7 +106,7 @@ export default function Sidebar({
   }, []);
 
   return (
-    <aside className={`teams-panel ${isCollapsed ? 'teams-panel--collapsed' : ''}`} style={style}>
+    <aside className={`teams-panel ${isCollapsed ? 'teams-panel--collapsed' : ''} ${className}`} style={style}>
       <div className="teams-panel__header">
         <div className="flex items-center justify-between">
           <div className="sidebar-mode-toggle">
@@ -227,6 +229,17 @@ export default function Sidebar({
       ) : (
         <>
           <nav className="teams-panel__nav">
+            <button
+              className={`teams-panel__nav-item ${selection.view === 'project' && !selectedProject ? 'teams-panel__nav-item--active' : ''}`}
+              onClick={() => onSelect({ view: 'project', projectDir: '' })}
+              title="Overview"
+            >
+              <span className="teams-panel__nav-icon">◈</span>
+              {!isCollapsed && <span>Overview</span>}
+            </button>
+
+            <div className="teams-panel__divider" />
+
             {projects.length === 0 && !isCollapsed && (
               <div className="text-muted text-xs" style={{ padding: '12px 8px' }}>
                 No projects

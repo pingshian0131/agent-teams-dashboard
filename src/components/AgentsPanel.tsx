@@ -9,6 +9,7 @@ interface AgentsPanelProps {
   onModeChange?: (mode: SidebarMode) => void;
   sidebarMode: SidebarMode;
   style?: React.CSSProperties;
+  className?: string;
 }
 
 /** Extract team name from agentId like "name@team" or "team-lead@team" */
@@ -53,7 +54,7 @@ const agentStatusColors: Record<AgentStatus, string> = {
   unknown: 'var(--text-muted)',
 };
 
-export default function AgentsPanel({ team, selectedProject, selection, onSelect, onModeChange, sidebarMode, style }: AgentsPanelProps) {
+export default function AgentsPanel({ team, selectedProject, selection, onSelect, onModeChange, sidebarMode, style, className = '' }: AgentsPanelProps) {
   const [expandedAgents, setExpandedAgents] = useState<Set<string>>(new Set());
   const [agentSessions, setAgentSessions] = useState<Map<string, AgentSession[]>>(new Map());
 
@@ -94,7 +95,7 @@ export default function AgentsPanel({ team, selectedProject, selection, onSelect
   if (sidebarMode === 'conversations') {
     if (!selectedProject) {
       return (
-        <aside className="agents-panel" style={style}>
+        <aside className={`agents-panel ${className}`} style={style}>
           <div className="agents-panel__header">
             <h2 className="agents-panel__title">Agents</h2>
           </div>
@@ -199,7 +200,7 @@ export default function AgentsPanel({ team, selectedProject, selection, onSelect
     };
 
     return (
-      <aside className="agents-panel" style={style}>
+      <aside className={`agents-panel ${className}`} style={style}>
         <div className="agents-panel__header">
           <h2 className="agents-panel__title truncate">{selectedProject.projectName}</h2>
           <div className="agents-panel__task-summary text-xs text-muted">
@@ -238,7 +239,7 @@ export default function AgentsPanel({ team, selectedProject, selection, onSelect
 
   if (!team) {
     return (
-      <aside className="agents-panel" style={style}>
+      <aside className={`agents-panel ${className}`} style={style}>
         <div className="agents-panel__header">
           <h2 className="agents-panel__title">Agents</h2>
         </div>
@@ -254,7 +255,7 @@ export default function AgentsPanel({ team, selectedProject, selection, onSelect
   const { taskStats } = team;
 
   return (
-    <aside className="agents-panel" style={style}>
+    <aside className={`agents-panel ${className}`} style={style}>
       <div className="agents-panel__header">
         <h2 className="agents-panel__title truncate">{team.config.name}</h2>
         <div className="agents-panel__task-summary text-xs text-muted">
