@@ -57,6 +57,15 @@ const agentStatusColors: Record<AgentStatus, string> = {
 export default function AgentsPanel({ team, selectedProject, selection, onSelect, onModeChange, sidebarMode, style, className = '' }: AgentsPanelProps) {
   const [expandedAgents, setExpandedAgents] = useState<Set<string>>(new Set());
   const [agentSessions, setAgentSessions] = useState<Map<string, AgentSession[]>>(new Map());
+  const [groupByTeam, setGroupByTeam] = useState(() => localStorage.getItem('agents_group_by_team') === 'true');
+
+  const toggleGroupMode = () => {
+    setGroupByTeam((prev) => {
+      const next = !prev;
+      localStorage.setItem('agents_group_by_team', String(next));
+      return next;
+    });
+  };
 
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -199,39 +208,73 @@ export default function AgentsPanel({ team, selectedProject, selection, onSelect
       );
     };
 
+    // Build sorted team groups (for grouped mode)
+    const sortedTeamGroups = Array.from(teamGroups)
+      .map(([teamName, agents]) => ({
+        teamName,
+        agents,
+        lastTimestamp: agents.reduce((max, a) => (a.lastTimestamp > max ? a.lastTimestamp : max), ''),
+      }))
+      .sort((a, b) => b.lastTimestamp.localeCompare(a.lastTimestamp));
+
     return (
       <aside className={`agents-panel ${className}`} style={style}>
         <div className="agents-panel__header">
           <h2 className="agents-panel__title truncate">{selectedProject.projectName}</h2>
-          <div className="agents-panel__task-summary text-xs text-muted">
-            {selectedProject.agents.length} agent{selectedProject.agents.length !== 1 ? 's' : ''}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div className="agents-panel__task-summary text-xs text-muted">
+              {selectedProject.agents.length} agent{selectedProject.agents.length !== 1 ? 's' : ''}
+            </div>
+            <button
+              onClick={toggleGroupMode}
+              title={groupByTeam ? 'Switch to time sort' : 'Switch to group by team'}
+              style={{
+                background: 'none',
+                border: '1px solid var(--border)',
+                borderRadius: '3px',
+                color: groupByTeam ? 'var(--accent-cyan)' : 'var(--text-muted)',
+                cursor: 'pointer',
+                fontSize: '10px',
+                padding: '1px 5px',
+                lineHeight: '1.4',
+              }}
+            >
+              {groupByTeam ? '⚑ grouped' : '⏱ time'}
+            </button>
           </div>
         </div>
 
         <div className="agents-panel__list">
-          {/* Team groups */}
-          {Array.from(teamGroups).map(([teamName, agents]) => (
-            <div key={teamName} className="agents-panel__team-group">
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '4px 8px',
-                  margin: '4px 0 2px',
-                  color: 'var(--text-muted)',
-                  fontSize: '11px',
-                }}
-              >
-                <span style={{ color: 'var(--accent-cyan)' }}>⚑</span>
-                <span className="truncate" style={{ flex: 1 }}>{teamName}</span>
-                <span>{agents.length}</span>
-              </div>
-              {agents.map((a) => renderAgent(a, teamName))}
-            </div>
-          ))}
-          {/* Standalone agents */}
-          {standaloneAgents.map((a) => renderAgent(a))}
+          {groupByTeam ? (
+            <>
+              {/* Team groups sorted by most recent timestamp */}
+              {sortedTeamGroups.map(({ teamName, agents }) => (
+                <div key={teamName} className="agents-panel__team-group">
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '4px 8px',
+                      margin: '4px 0 2px',
+                      color: 'var(--text-muted)',
+                      fontSize: '11px',
+                    }}
+                  >
+                    <span style={{ color: 'var(--accent-cyan)' }}>⚑</span>
+                    <span className="truncate" style={{ flex: 1 }}>{teamName}</span>
+                    <span>{agents.length}</span>
+                  </div>
+                  {agents.map((a) => renderAgent(a, teamName))}
+                </div>
+              ))}
+              {/* Standalone agents */}
+              {standaloneAgents.map((a) => renderAgent(a))}
+            </>
+          ) : (
+            /* Flat: all agents sorted by lastTimestamp (server already sorted) */
+            selectedProject.agents.map((a) => renderAgent(a, parseTeamFromAgentId(a.agentId) ?? undefined))
+          )}
         </div>
       </aside>
     );

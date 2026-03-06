@@ -153,7 +153,8 @@ body {
 .search-results {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -883,7 +884,8 @@ body {
 .overview-panel {
   padding: 16px;
   overflow-y: auto;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
 }
 
 .overview-grid {
@@ -1040,7 +1042,8 @@ body {
 .task-board {
   padding: 16px;
   overflow-y: auto;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
 }
 
 .task-board__columns {
@@ -1118,7 +1121,8 @@ body {
 .chat-panel {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   position: relative;
 }
 
@@ -1412,7 +1416,8 @@ body {
 .agent-panel {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
 }
 
 .agent-panel__header {
