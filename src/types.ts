@@ -56,6 +56,7 @@ export interface AgentSession {
 export interface ProjectOverview {
   projectDir: string;
   projectName: string;
+  realPath: string;
   agents: { agentId: string; slug: string; entryCount: number; lastTimestamp: string }[];
   lastActivity: string;
 }

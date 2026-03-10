@@ -58,6 +58,7 @@ export default function AgentsPanel({ team, selectedProject, selection, onSelect
   const [expandedAgents, setExpandedAgents] = useState<Set<string>>(new Set());
   const [agentSessions, setAgentSessions] = useState<Map<string, AgentSession[]>>(new Map());
   const [groupByTeam, setGroupByTeam] = useState(() => localStorage.getItem('agents_group_by_team') === 'true');
+  const [copiedSessionId, setCopiedSessionId] = useState<string | null>(null);
 
   const toggleGroupMode = () => {
     setGroupByTeam((prev) => {
@@ -179,9 +180,13 @@ export default function AgentsPanel({ team, selectedProject, selection, onSelect
                   selection.view === 'agent' &&
                   selection.agentId === agent.agentId &&
                   selection.sessionId === s.sessionId;
+                const projectPath = selectedProject.realPath || `~/.claude/projects/${selectedProject.projectDir}`;
+                const resumeCmd = `cd ${projectPath} && claude --resume ${s.sessionId}`;
                 return (
-                  <button
+                  <div
                     key={s.sessionId}
+                    role="button"
+                    tabIndex={0}
                     className={`agents-panel__session ${isSessionSelected ? 'agents-panel__session--active' : ''}`}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -193,13 +198,37 @@ export default function AgentsPanel({ team, selectedProject, selection, onSelect
                         sessionId: isSessionSelected ? undefined : s.sessionId,
                       });
                     }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onSelect({
+                          view: 'agent',
+                          agentId: agent.agentId,
+                          agentSlug: agent.slug,
+                          teamName,
+                          sessionId: isSessionSelected ? undefined : s.sessionId,
+                        });
+                      }
+                    }}
                   >
                     <span className="agents-panel__session-id">{s.sessionId.slice(0, 8)}</span>
                     <span className="agents-panel__session-time">
                       {formatTime(s.firstTimestamp)}–{formatTime(s.lastTimestamp)}
                     </span>
                     <span className="agents-panel__session-count">{s.entryCount}</span>
-                  </button>
+                    <button
+                      className="agents-panel__session-copy"
+                      title={resumeCmd}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigator.clipboard.writeText(resumeCmd);
+                        setCopiedSessionId(s.sessionId);
+                        setTimeout(() => setCopiedSessionId(null), 1500);
+                      }}
+                    >
+                      {copiedSessionId === s.sessionId ? '✓' : '⎘'}
+                    </button>
+                  </div>
                 );
               })}
             </div>

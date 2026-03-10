@@ -11,6 +11,7 @@ Real-time monitoring dashboard for [Claude Code](https://claude.ai/code) agent t
 - **Team Overview** — Live status cards with status dots, progress bars, and member counts
 - **Agent Sessions** — Per-agent session grouping with expandable timeline
 - **Agent Sort Toggle** — Switch between time-sorted (default) and team-grouped view in Conversations mode
+- **Session Resume** — Hover any session in Conversations mode → click `⎘` to copy `cd <path> && claude --resume <sessionId>` to clipboard
 - **Kanban Task Board** — Pending / In Progress / Completed columns
 - **Agent Activity Monitor** — Real-time messages and tool usage per agent
 - **WebSocket Streaming** — File system changes pushed to browser instantly
@@ -138,6 +139,8 @@ Without `AUTH_TOKEN`, the dashboard works exactly as before — no authenticatio
 | `PORT` | `3001` | Server port |
 | `AUTH_TOKEN` | _(unset)_ | Set to enable authentication |
 | `CORS_ORIGIN` | `*` | CORS `Access-Control-Allow-Origin` value |
+| `HOST_HOME` | _(auto)_ | Host machine's home directory path (Docker: set automatically) |
+| `HOST_HOME_MOUNT` | _(unset)_ | Container path where host home is mounted (Docker: `/host-home`) |
 
 ## Inspiration
 

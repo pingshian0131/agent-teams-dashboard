@@ -9,6 +9,7 @@
 - **雙側邊欄導航** — 三欄式佈局：TeamsPanel（可摺疊）→ AgentsPanel → MainPanel
 - **團隊總覽** — 即時狀態卡片，含 status dots、進度條、成員數
 - **Agent Sessions** — 按 agent 分組的 session 時間軸，可展開檢視
+- **Session Resume** — 在 Conversations 模式 hover 任一 session → 點 `⎘` 複製 `cd <path> && claude --resume <sessionId>` 到剪貼簿
 - **看板式任務面板** — Pending / In Progress / Completed 三欄式任務追蹤
 - **Agent 活動監控** — 即時顯示每個 agent 的訊息與工具使用紀錄
 - **WebSocket 即時更新** — 檔案系統變更自動推送至瀏覽器
@@ -126,6 +127,8 @@ AUTH_TOKEN=your-secret-token CORS_ORIGIN=https://your-domain.com npm run server
 | `PORT` | `3001` | 伺服器埠號 |
 | `AUTH_TOKEN` | _(未設定)_ | 設定後啟用認證 |
 | `CORS_ORIGIN` | `*` | CORS `Access-Control-Allow-Origin` 值 |
+| `HOST_HOME` | _(自動)_ | Host 機器的 home 目錄路徑（Docker 自動設定） |
+| `HOST_HOME_MOUNT` | _(未設定)_ | Container 內 host home 的掛載路徑（Docker: `/host-home`） |
 
 ## 靈感來源
 

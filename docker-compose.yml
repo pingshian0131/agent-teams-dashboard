@@ -8,9 +8,11 @@ services:
       - .:/app
       - app_modules:/app/node_modules
       - ${HOME}/.claude:/root/.claude:ro
+      - ${HOME}:/host-home:ro
     environment:
       - PORT=3001
       - HOST_HOME=${HOME}
+      - HOST_HOME_MOUNT=/host-home
       # - AUTH_TOKEN=your-secret-token
       # - CORS_ORIGIN=https://your-domain.com
 

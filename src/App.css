@@ -1412,6 +1412,29 @@ body {
   border-left-color: var(--accent-purple);
 }
 
+.agents-panel__session-copy {
+  margin-left: auto;
+  padding: 2px 6px;
+  font-size: 13px;
+  opacity: 0.35;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: opacity 0.15s, background 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.agents-panel__session:hover .agents-panel__session-copy {
+  opacity: 1;
+}
+.agents-panel__session-copy:hover {
+  color: #fff;
+  background: var(--accent-cyan);
+  border-color: var(--accent-cyan);
+}
+
 /* === Agent Panel (main content) === */
 .agent-panel {
   display: flex;

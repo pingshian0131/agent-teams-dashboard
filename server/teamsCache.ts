@@ -1,4 +1,5 @@
 import { readdir, readFile, stat, open } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { EventEmitter } from 'node:events';
@@ -547,6 +548,47 @@ function resolveProjectName(projectDir: string, allProjectDirs: Set<string>): st
   return remainder;
 }
 
+function decodeProjectPath(encodedDir: string): string {
+  const home = process.env.HOST_HOME || homedir();
+  // In Docker, HOST_HOME_MOUNT points to where the host home is mounted inside the container
+  // so we can use existsSync for path resolution, but return the real host path.
+  const checkBase = process.env.HOST_HOME_MOUNT || home;
+  const homeEncoded = '-' + home.replace(/\//g, '-').replace(/^-/, '');
+
+  if (!encodedDir.startsWith(homeEncoded)) {
+    return '/' + encodedDir.slice(1).replace(/-/g, '/');
+  }
+
+  const afterHome = encodedDir.slice(homeEncoded.length);
+  if (!afterHome) return home;
+  const remainder = afterHome.slice(1);
+  if (!remainder) return home;
+
+  const parts = remainder.split('-');
+  let currentPath = home;
+  let currentCheckPath = checkBase;
+  let i = 0;
+  while (i < parts.length) {
+    let found = false;
+    for (let j = parts.length - 1; j >= i; j--) {
+      const segment = parts.slice(i, j + 1).join('-');
+      const candidateCheck = currentCheckPath + '/' + segment;
+      if (existsSync(candidateCheck)) {
+        currentPath = currentPath + '/' + segment;
+        currentCheckPath = candidateCheck;
+        i = j + 1;
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      currentPath += '/' + parts.slice(i).join('/');
+      break;
+    }
+  }
+  return currentPath;
+}
+
 function buildProjectOverviews(): ProjectOverview[] {
   // Group all agent entries by projectDir
   const projectMap = new Map<string, Map<string, { slug: string; entries: AgentLogEntry[] }>>();
@@ -592,6 +634,7 @@ function buildProjectOverviews(): ProjectOverview[] {
     projects.push({
       projectDir,
       projectName: resolveProjectName(projectDir, knownProjectDirs),
+      realPath: decodeProjectPath(projectDir),
       agents,
       lastActivity,
     });
