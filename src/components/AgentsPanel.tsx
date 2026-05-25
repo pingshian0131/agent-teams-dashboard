@@ -148,6 +148,7 @@ export default function AgentsPanel({ team, selectedProject, selection, onSelect
                 agentId: agent.agentId,
                 agentSlug: agent.slug,
                 teamName,
+                projectDir: selectedProject.projectDir,
               })
             }
           >
@@ -196,6 +197,7 @@ export default function AgentsPanel({ team, selectedProject, selection, onSelect
                         agentSlug: agent.slug,
                         teamName,
                         sessionId: isSessionSelected ? undefined : s.sessionId,
+                        projectDir: selectedProject.projectDir,
                       });
                     }}
                     onKeyDown={(e) => {
@@ -207,6 +209,7 @@ export default function AgentsPanel({ team, selectedProject, selection, onSelect
                           agentSlug: agent.slug,
                           teamName,
                           sessionId: isSessionSelected ? undefined : s.sessionId,
+                          projectDir: selectedProject.projectDir,
                         });
                       }
                     }}

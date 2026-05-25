@@ -1,22 +1,29 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAgentEntries } from '../hooks/useAgentEntries';
 import ActivityEntry from './ActivityEntry';
+import type { ProjectOverview } from '../types';
 
 interface AgentPanelProps {
   agentId: string;
   agentSlug: string;
   teamName?: string;
   sessionId?: string;
+  projectDir?: string;
+  projects?: ProjectOverview[];
 }
 
 function getSessionLabel(sessionId: string): string {
   return sessionId.slice(0, 8);
 }
 
-export default function AgentPanel({ agentId, agentSlug, teamName, sessionId }: AgentPanelProps) {
+export default function AgentPanel({ agentId, agentSlug, teamName, sessionId, projectDir, projects }: AgentPanelProps) {
   const feedRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
   const { entries, loading, hasMore, loadMore } = useAgentEntries(agentId, sessionId);
+
+  const projectName = projects && projectDir
+    ? (projects.find((p) => p.projectDir === projectDir)?.projectName ?? projectDir)
+    : undefined;
 
   const lastEntry = entries[entries.length - 1];
   const statusLabel = lastEntry
@@ -48,6 +55,9 @@ export default function AgentPanel({ agentId, agentSlug, teamName, sessionId }: 
           )}
         </div>
         <div className="chat-panel__header-right">
+          {projectName && (
+            <span className="chat-panel__project text-xs text-muted" title={projectDir}>{projectName}</span>
+          )}
           {teamName && <span className="chat-panel__team text-xs text-muted">{teamName}</span>}
           <span className="text-xs text-muted">{entries.length} msgs</span>
         </div>

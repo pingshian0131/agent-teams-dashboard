@@ -76,6 +76,7 @@ export default function SearchResults({ query, projectDir, projects, onSelect }:
       agentId: r.agentId,
       agentSlug: r.slug,
       sessionId: r.sessionId || undefined,
+      projectDir: r.projectDir,
     });
   };
 

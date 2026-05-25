@@ -106,7 +106,7 @@ export interface SearchResult {
 export type ViewSelection =
   | { view: 'overview' }
   | { view: 'team'; teamName: string }
-  | { view: 'agent'; agentId: string; agentSlug: string; teamName?: string; sessionId?: string }
+  | { view: 'agent'; agentId: string; agentSlug: string; teamName?: string; sessionId?: string; projectDir?: string }
   | { view: 'tasks'; teamName: string }
   | { view: 'project'; projectDir: string }
   | { view: 'search'; query: string; projectDir?: string };

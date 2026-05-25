@@ -42,6 +42,8 @@ export default function MainPanel({ selection, snapshot, onSelect, sidebarMode, 
             agentSlug={selection.agentSlug}
             teamName={selection.teamName}
             sessionId={selection.sessionId}
+            projectDir={selection.projectDir}
+            projects={snapshot.projects ?? []}
           />
         );
 
