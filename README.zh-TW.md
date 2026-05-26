@@ -10,6 +10,7 @@
 - **團隊總覽** — 即時狀態卡片，含 status dots、進度條、成員數
 - **Agent Sessions** — 按 agent 分組的 session 時間軸，可展開檢視
 - **Session Resume** — 在 Conversations 模式 hover 任一 session → 點 `⎘` 複製 `cd <path> && claude --resume <sessionId>` 到剪貼簿
+- **顯示來源 Project** — Agent 面板 header 右側顯示所屬 project 名稱；從搜尋結果或 Conversations 模式進入時自動帶入
 - **看板式任務面板** — Pending / In Progress / Completed 三欄式任務追蹤
 - **Agent 活動監控** — 即時顯示每個 agent 的訊息與工具使用紀錄
 - **WebSocket 即時更新** — 檔案系統變更自動推送至瀏覽器

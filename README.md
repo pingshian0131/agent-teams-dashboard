@@ -12,6 +12,7 @@ Real-time monitoring dashboard for [Claude Code](https://claude.ai/code) agent t
 - **Agent Sessions** — Per-agent session grouping with expandable timeline
 - **Agent Sort Toggle** — Switch between time-sorted (default) and team-grouped view in Conversations mode
 - **Session Resume** — Hover any session in Conversations mode → click `⎘` to copy `cd <path> && claude --resume <sessionId>` to clipboard
+- **Project Source Display** — Agent panel header shows the source project name; visible when navigating from search results or Conversations mode
 - **Kanban Task Board** — Pending / In Progress / Completed columns
 - **Agent Activity Monitor** — Real-time messages and tool usage per agent
 - **WebSocket Streaming** — File system changes pushed to browser instantly
