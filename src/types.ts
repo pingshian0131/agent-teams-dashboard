@@ -57,8 +57,50 @@ export interface ProjectOverview {
   projectDir: string;
   projectName: string;
   realPath: string;
-  agents: { agentId: string; slug: string; entryCount: number; lastTimestamp: string }[];
+  agents: {
+    agentId: string;
+    slug: string;
+    entryCount: number;
+    lastTimestamp: string;
+    // Present when this agent was spawned by a workflow run (Convos shows a ⚙ marker)
+    workflowRunId?: string;
+    workflowName?: string;
+  }[];
   lastActivity: string;
+}
+
+// Workflows
+export interface WorkflowAgentRef {
+  agentId: string;       // namespaced as "wf:<runId>:<hash>"
+  agentType: string;     // from agent-<hash>.meta.json (e.g. "Explore", "workflow-subagent")
+  slug: string;
+  entryCount: number;
+  lastTimestamp: string;
+}
+
+export interface WorkflowRun {
+  runId: string;
+  workflowName: string;
+  summary: string;
+  status: string; // 'running' | 'completed' | 'failed' | ...
+  startTime: number;
+  durationMs?: number;
+  timestamp: string;
+  agentCount: number;
+  totalTokens?: number;
+  totalToolCalls?: number;
+  defaultModel?: string;
+  phases: { title: string; detail?: string }[];
+  completedPhases: number;
+  projectDir: string;
+  projectName: string;
+  sessionId: string;
+  agents: WorkflowAgentRef[];
+  // detail-only fields (returned by GET /api/workflows/:runId, omitted from snapshots)
+  script?: string;
+  scriptPath?: string;
+  result?: unknown;
+  logs?: unknown[];
 }
 
 // Aggregated types
@@ -76,6 +118,7 @@ export interface FullSnapshot {
   unmatchedAgents: { agentId: string; slug: string; sessionId: string }[];
   agentActivity?: Record<string, AgentLogEntry[]>;
   projects: ProjectOverview[];
+  workflows: WorkflowRun[];
 }
 
 // WebSocket events
@@ -88,7 +131,7 @@ export type WsEvent =
   | { type: 'agent_entries_delta'; agentId: string; entries: AgentLogEntry[] };
 
 // Sidebar mode
-export type SidebarMode = 'teams' | 'conversations';
+export type SidebarMode = 'teams' | 'conversations' | 'workflows';
 
 // Search
 export interface SearchResult {
@@ -109,4 +152,6 @@ export type ViewSelection =
   | { view: 'agent'; agentId: string; agentSlug: string; teamName?: string; sessionId?: string; projectDir?: string }
   | { view: 'tasks'; teamName: string }
   | { view: 'project'; projectDir: string }
+  | { view: 'workflows'; projectDir?: string }
+  | { view: 'workflow'; runId: string; projectDir: string; sessionId?: string }
   | { view: 'search'; query: string; projectDir?: string };

@@ -67,6 +67,9 @@ export default function App() {
       setSelection({ view: 'project', projectDir: '' });
     } else if (mode === 'teams') {
       setSelection({ view: 'overview' });
+    } else if (mode === 'workflows') {
+      setSelectedProject(null);
+      setSelection({ view: 'workflows' });
     }
   }, []);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
@@ -87,6 +90,9 @@ export default function App() {
     if (sel.view === 'team' || sel.view === 'tasks') setSelectedTeam(sel.teamName);
     else if (sel.view === 'agent' && sel.teamName) setSelectedTeam(sel.teamName);
     if (sel.view === 'project') setSelectedProject(sel.projectDir);
+    else if (sel.view === 'workflows') setSelectedProject(sel.projectDir ?? null);
+    else if (sel.view === 'workflow') setSelectedProject(sel.projectDir);
+    else if (sel.view === 'agent' && sel.projectDir) setSelectedProject(sel.projectDir);
   }, []);
 
   // On mobile, selecting an item also closes the drawer
@@ -134,9 +140,11 @@ export default function App() {
                 ? selection.teamName
                 : selection.view === 'project'
                   ? 'Conversations'
-                  : selection.view === 'overview'
-                    ? 'Overview'
-                    : 'Dashboard'}
+                  : selection.view === 'workflows' || selection.view === 'workflow'
+                    ? 'Workflows'
+                    : selection.view === 'overview'
+                      ? 'Overview'
+                      : 'Dashboard'}
           </span>
           <span
             className="mobile-header__conn-dot"
@@ -177,6 +185,7 @@ export default function App() {
         <AgentsPanel
           team={team}
           selectedProject={project}
+          workflows={snapshot?.workflows ?? []}
           selection={selection}
           onSelect={handleMobileSelect}
           onModeChange={handleModeChange}
@@ -199,7 +208,7 @@ export default function App() {
           >
             <span className="mobile-tab-bar__icon">◈</span>
             <span className="mobile-tab-bar__label">
-              {sidebarMode === 'teams' ? 'Teams' : 'Projects'}
+              {sidebarMode === 'teams' ? 'Teams' : sidebarMode === 'workflows' ? 'Workflows' : 'Projects'}
             </span>
           </button>
           <button
@@ -247,6 +256,7 @@ export default function App() {
       <AgentsPanel
         team={team}
         selectedProject={project}
+        workflows={snapshot?.workflows ?? []}
         selection={selection}
         onSelect={handleSelect}
         onModeChange={handleModeChange}

@@ -1,6 +1,8 @@
 import type { FullSnapshot, ViewSelection, SidebarMode } from '../types';
 import OverviewPanel from './OverviewPanel';
 import ConvosOverviewPanel from './ConvosOverviewPanel';
+import WorkflowsOverviewPanel from './WorkflowsOverviewPanel';
+import WorkflowDetailPanel from './WorkflowDetailPanel';
 import AgentPanel from './AgentPanel';
 import TaskBoard from './TaskBoard';
 import EmptyState from './EmptyState';
@@ -65,6 +67,18 @@ export default function MainPanel({ selection, snapshot, onSelect, sidebarMode, 
 
       case 'project':
         return <ConvosOverviewPanel projects={snapshot.projects ?? []} onSelect={onSelect} />;
+
+      case 'workflows':
+        return <WorkflowsOverviewPanel workflows={snapshot.workflows ?? []} onSelect={onSelect} />;
+
+      case 'workflow':
+        return (
+          <WorkflowDetailPanel
+            runId={selection.runId}
+            workflows={snapshot.workflows ?? []}
+            onSelect={onSelect}
+          />
+        );
 
       default:
         return <EmptyState />;

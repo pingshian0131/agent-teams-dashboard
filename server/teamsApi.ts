@@ -34,6 +34,25 @@ export async function handleTeamsApi(
     return true;
   }
 
+  // GET /api/workflows
+  if (path === '/api/workflows') {
+    json(res, cache.getWorkflows());
+    return true;
+  }
+
+  // GET /api/workflows/:runId  (full detail incl. script/result/logs)
+  const workflowMatch = path.match(/^\/api\/workflows\/([^/]+)$/);
+  if (workflowMatch) {
+    const runId = decodeURIComponent(workflowMatch[1]);
+    const run = cache.getWorkflowDetail(runId);
+    if (!run) {
+      notFound(res);
+      return true;
+    }
+    json(res, run);
+    return true;
+  }
+
   // GET /api/teams/:id/tasks
   const tasksMatch = path.match(/^\/api\/teams\/([^/]+)\/tasks$/);
   if (tasksMatch) {

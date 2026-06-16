@@ -1,15 +1,26 @@
 import { useState, useEffect } from 'react';
-import type { TeamOverview, ViewSelection, SidebarMode, ProjectOverview, AgentSession } from '../types';
+import type { TeamOverview, ViewSelection, SidebarMode, ProjectOverview, AgentSession, WorkflowRun } from '../types';
 
 interface AgentsPanelProps {
   team: TeamOverview | null;
   selectedProject: ProjectOverview | null;
+  workflows?: WorkflowRun[];
   selection: ViewSelection;
   onSelect: (sel: ViewSelection) => void;
   onModeChange?: (mode: SidebarMode) => void;
   sidebarMode: SidebarMode;
   style?: React.CSSProperties;
   className?: string;
+}
+
+const workflowStatusColors: Record<string, string> = {
+  running: 'var(--accent-green)',
+  completed: 'var(--accent-cyan)',
+  failed: 'var(--accent-red)',
+};
+
+function workflowStatusColor(status: string): string {
+  return workflowStatusColors[status] ?? 'var(--text-muted)';
 }
 
 /** Extract team name from agentId like "name@team" or "team-lead@team" */
@@ -54,11 +65,21 @@ const agentStatusColors: Record<AgentStatus, string> = {
   unknown: 'var(--text-muted)',
 };
 
-export default function AgentsPanel({ team, selectedProject, selection, onSelect, onModeChange, sidebarMode, style, className = '' }: AgentsPanelProps) {
+export default function AgentsPanel({ team, selectedProject, workflows = [], selection, onSelect, onModeChange, sidebarMode, style, className = '' }: AgentsPanelProps) {
   const [expandedAgents, setExpandedAgents] = useState<Set<string>>(new Set());
   const [agentSessions, setAgentSessions] = useState<Map<string, AgentSession[]>>(new Map());
   const [groupByTeam, setGroupByTeam] = useState(() => localStorage.getItem('agents_group_by_team') === 'true');
   const [copiedSessionId, setCopiedSessionId] = useState<string | null>(null);
+  const [expandedRuns, setExpandedRuns] = useState<Set<string>>(new Set());
+
+  const toggleRun = (runId: string) => {
+    setExpandedRuns((prev) => {
+      const next = new Set(prev);
+      if (next.has(runId)) next.delete(runId);
+      else next.add(runId);
+      return next;
+    });
+  };
 
   const toggleGroupMode = () => {
     setGroupByTeam((prev) => {
@@ -100,6 +121,113 @@ export default function AgentsPanel({ team, selectedProject, selection, onSelect
       return next;
     });
   };
+
+  // Workflows mode: show the selected project's workflow runs (expandable to sub-agents)
+  if (sidebarMode === 'workflows') {
+    if (!selectedProject) {
+      return (
+        <aside className={`agents-panel ${className}`} style={style}>
+          <div className="agents-panel__header">
+            <h2 className="agents-panel__title">Workflows</h2>
+          </div>
+          <div className="agents-panel__empty">
+            <span className="text-muted text-xs">Select a project</span>
+          </div>
+        </aside>
+      );
+    }
+
+    const runs = workflows
+      .filter((w) => w.projectDir === selectedProject.projectDir)
+      .sort((a, b) => b.startTime - a.startTime);
+    const selectedRunId =
+      selection.view === 'workflow' ? selection.runId
+      : selection.view === 'agent' && selection.agentId.startsWith('wf:')
+        ? selection.agentId.split(':')[1]
+        : null;
+
+    return (
+      <aside className={`agents-panel ${className}`} style={style}>
+        <div className="agents-panel__header">
+          <h2 className="agents-panel__title truncate">{selectedProject.projectName}</h2>
+          <div className="agents-panel__task-summary text-xs text-muted">
+            {runs.length} run{runs.length !== 1 ? 's' : ''}
+          </div>
+        </div>
+
+        <div className="agents-panel__list">
+          {runs.length === 0 && (
+            <div className="agents-panel__empty">
+              <span className="text-muted text-xs">No workflow runs</span>
+            </div>
+          )}
+          {runs.map((run) => {
+            const isRunSelected = selectedRunId === run.runId;
+            const isExpanded = expandedRuns.has(run.runId);
+            return (
+              <div key={run.runId} className="agents-panel__agent">
+                <button
+                  className={`agents-panel__agent-btn ${isRunSelected ? 'agents-panel__agent-btn--active' : ''}`}
+                  onClick={() =>
+                    onSelect({ view: 'workflow', runId: run.runId, projectDir: run.projectDir, sessionId: run.sessionId })
+                  }
+                >
+                  <span className="agents-panel__agent-dot" style={{ color: workflowStatusColor(run.status) }}>
+                    {run.status === 'running' ? '◉' : '●'}
+                  </span>
+                  <span className="agents-panel__agent-name truncate">{run.workflowName}</span>
+                  <span className="agents-panel__agent-type text-xs text-muted">
+                    {run.completedPhases}/{run.phases.length}
+                  </span>
+                </button>
+
+                <div className="agents-panel__agent-meta text-xs text-muted">
+                  <span>{run.status} · {run.agentCount}⚙</span>
+                  {run.agents.length > 0 && (
+                    <button
+                      className="agents-panel__session-toggle"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleRun(run.runId);
+                      }}
+                    >
+                      {isExpanded ? '▾' : '▸'} agents
+                    </button>
+                  )}
+                </div>
+
+                {isExpanded && run.agents.length > 0 && (
+                  <div className="agents-panel__sessions">
+                    {run.agents.map((a) => {
+                      const isAgentSelected = selection.view === 'agent' && selection.agentId === a.agentId;
+                      return (
+                        <button
+                          key={a.agentId}
+                          className={`agents-panel__session ${isAgentSelected ? 'agents-panel__session--active' : ''}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSelect({
+                              view: 'agent',
+                              agentId: a.agentId,
+                              agentSlug: a.slug,
+                              projectDir: run.projectDir,
+                            });
+                          }}
+                        >
+                          <span className="agents-panel__session-id truncate">{a.slug}</span>
+                          <span className="agents-panel__session-count">{a.entryCount}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </aside>
+    );
+  }
 
   // Conversations mode: show project agents
   if (sidebarMode === 'conversations') {
@@ -155,7 +283,12 @@ export default function AgentsPanel({ team, selectedProject, selection, onSelect
             <span className="agents-panel__agent-dot" style={{ color: agentStatusColors[status] }}>
               ●
             </span>
-            <span className="agents-panel__agent-name truncate">{agent.slug}</span>
+            <span className="agents-panel__agent-name truncate">
+              {agent.workflowRunId && (
+                <span title={`workflow: ${agent.workflowName ?? agent.workflowRunId}`} style={{ color: 'var(--accent-cyan)', marginRight: 4 }}>⚙</span>
+              )}
+              {agent.slug}
+            </span>
             <span className="agents-panel__agent-type text-xs text-muted">{agent.entryCount}</span>
           </button>
 

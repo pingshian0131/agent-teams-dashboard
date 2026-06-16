@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { FullSnapshot, ViewSelection, TeamOverview, SidebarMode } from '../types';
+import type { FullSnapshot, ViewSelection, TeamOverview, SidebarMode, WorkflowRun } from '../types';
 
 interface SidebarProps {
   snapshot: FullSnapshot | null;
@@ -32,6 +32,29 @@ function useRefreshCountdown(lastUpdated: number | null): number | null {
     return () => clearInterval(id);
   }, [lastUpdated]);
   return countdown;
+}
+
+interface WorkflowProjectGroup {
+  projectDir: string;
+  projectName: string;
+  runCount: number;
+  runningCount: number;
+  lastStart: number;
+}
+
+function buildWorkflowProjects(workflows: WorkflowRun[]): WorkflowProjectGroup[] {
+  const map = new Map<string, WorkflowProjectGroup>();
+  for (const run of workflows) {
+    let g = map.get(run.projectDir);
+    if (!g) {
+      g = { projectDir: run.projectDir, projectName: run.projectName, runCount: 0, runningCount: 0, lastStart: 0 };
+      map.set(run.projectDir, g);
+    }
+    g.runCount += 1;
+    if (run.status === 'running') g.runningCount += 1;
+    if (run.startTime > g.lastStart) g.lastStart = run.startTime;
+  }
+  return Array.from(map.values()).sort((a, b) => b.lastStart - a.lastStart);
 }
 
 type TeamStatus = 'active' | 'idle' | 'done' | 'inactive';
@@ -88,6 +111,8 @@ export default function Sidebar({
 }: SidebarProps) {
   const teams = snapshot?.teams ?? [];
   const projects = snapshot?.projects ?? [];
+  const workflows = snapshot?.workflows ?? [];
+  const workflowProjects = buildWorkflowProjects(workflows);
   const totalStats = teams.reduce(
     (acc, t) => ({
       pending: acc.pending + t.taskStats.pending,
@@ -123,6 +148,13 @@ export default function Sidebar({
               title="Conversations"
             >
               {isCollapsed ? 'C' : 'Convos'}
+            </button>
+            <button
+              className={`sidebar-mode-toggle__btn ${sidebarMode === 'workflows' ? 'sidebar-mode-toggle__btn--active' : ''}`}
+              onClick={() => onModeChange('workflows')}
+              title="Workflows"
+            >
+              {isCollapsed ? 'W' : 'Workflows'}
             </button>
           </div>
           {!isCollapsed && (
@@ -226,7 +258,7 @@ export default function Sidebar({
             </div>
           )}
         </>
-      ) : (
+      ) : sidebarMode === 'conversations' ? (
         <>
           <nav className="teams-panel__nav">
             <button
@@ -293,6 +325,75 @@ export default function Sidebar({
             <div className="teams-panel__footer">
               <div className="teams-panel__footer-stats text-xs text-muted">
                 <span>{projects.length} project{projects.length !== 1 ? 's' : ''}</span>
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          <nav className="teams-panel__nav">
+            <button
+              className={`teams-panel__nav-item ${selection.view === 'workflows' && !selectedProject ? 'teams-panel__nav-item--active' : ''}`}
+              onClick={() => onSelect({ view: 'workflows' })}
+              title="Overview"
+            >
+              <span className="teams-panel__nav-icon">⚙</span>
+              {!isCollapsed && <span>Overview</span>}
+            </button>
+
+            <div className="teams-panel__divider" />
+
+            {workflowProjects.length === 0 && !isCollapsed && (
+              <div className="text-muted text-xs" style={{ padding: '12px 8px' }}>
+                No workflows
+              </div>
+            )}
+
+            {workflowProjects.map((proj) => {
+              const isSelected = selectedProject === proj.projectDir;
+              const projStatus: TeamStatus = proj.runningCount > 0
+                ? 'active'
+                : Date.now() - proj.lastStart < 3_600_000 ? 'idle' : 'inactive';
+
+              return (
+                <button
+                  key={proj.projectDir}
+                  className={`teams-panel__team ${isSelected ? 'teams-panel__team--active' : ''}`}
+                  onClick={() => onSelect({ view: 'workflows', projectDir: proj.projectDir })}
+                  title={isCollapsed ? proj.projectName : undefined}
+                >
+                  {isCollapsed ? (
+                    <div className="teams-panel__team-collapsed">
+                      <span className="teams-panel__team-dot" style={{ color: statusColors[projStatus] }}>
+                        {projStatus === 'active' ? '◉' : '●'}
+                      </span>
+                      <span className="teams-panel__team-initial">{proj.projectName.charAt(0).toUpperCase()}</span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="teams-panel__team-row">
+                        <span className="teams-panel__team-dot" style={{ color: statusColors[projStatus] }}>
+                          {projStatus === 'active' ? '◉' : '●'}
+                        </span>
+                        <span className="teams-panel__team-name truncate">{proj.projectName}</span>
+                        <span className="text-secondary" style={{ fontSize: 13 }}>{proj.runCount}</span>
+                      </div>
+                      {proj.runningCount > 0 && (
+                        <div className="text-secondary" style={{ fontSize: 13, paddingLeft: 2, color: 'var(--accent-green)' }}>
+                          {proj.runningCount} running
+                        </div>
+                      )}
+                    </>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+
+          {!isCollapsed && (
+            <div className="teams-panel__footer">
+              <div className="teams-panel__footer-stats text-xs text-muted">
+                <span>{workflows.length} run{workflows.length !== 1 ? 's' : ''}</span>
               </div>
             </div>
           )}

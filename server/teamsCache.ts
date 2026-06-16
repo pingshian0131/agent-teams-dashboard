@@ -12,6 +12,8 @@ import type {
   AgentLogEntry,
   AgentSession,
   ProjectOverview,
+  WorkflowRun,
+  WorkflowAgentRef,
 } from '../src/types.js';
 
 const CLAUDE_DIR = join(homedir(), '.claude');
@@ -39,6 +41,14 @@ interface TeamLeadInfo {
 const teamLeadSessions = new Map<string, TeamLeadInfo>(); // leadSessionId -> team info
 const subagentToMember = new Map<string, string>(); // subagent filePath -> memberAgentId
 const removedTeams = new Map<string, { config: TeamConfig; removedAt: string }>(); // teams deleted from disk
+
+// --- Workflows ---
+// Full workflow run journals (includes script/result/logs), keyed by runId.
+const workflowRuns = new Map<string, WorkflowRun>();
+const workflowFileMtimes = new Map<string, number>(); // wf_*.json filePath -> mtimeMs (skip re-parse if unchanged)
+const workflowAgentType = new Map<string, string>(); // workflow sub-agent jsonl filePath -> agentType (from meta.json)
+// workflow sub-agent agentId ("wf:<runId>:<hash>") -> run association
+const workflowAgentMeta = new Map<string, { runId: string; workflowName: string; agentType: string }>();
 
 export const onChange = new EventEmitter();
 
@@ -227,11 +237,127 @@ export async function scanAgentJsonl(): Promise<void> {
         if (!file.startsWith('agent-') || !file.endsWith('.jsonl')) continue;
         await readNewEntries(join(subagentsDir, file), false, projDir, parentSessionId);
       }
+
+      // Workflow run journals: session/workflows/wf_*.json
+      // (scan runs first so sub-agents can resolve their workflowName)
+      await scanWorkflowRuns(join(entryPath, 'workflows'), projDir, parentSessionId);
+
+      // Workflow sub-agent conversations: session/subagents/workflows/wf_<runId>/agent-*.jsonl
+      await scanWorkflowSubagents(join(subagentsDir, 'workflows'), projDir, parentSessionId);
     }
   }
 }
 
-async function readNewEntries(filePath: string, isSessionFile: boolean, projectDir?: string, parentSessionId?: string): Promise<void> {
+/** Parse a wf_*.json journal into a (full) WorkflowRun. */
+function parseWorkflowRun(parsed: any, projectDir: string, sessionId: string): WorkflowRun {
+  const phases = Array.isArray(parsed.phases)
+    ? parsed.phases.map((p: any) => ({ title: p.title ?? '', detail: p.detail }))
+    : [];
+  const progress = Array.isArray(parsed.workflowProgress) ? parsed.workflowProgress : [];
+  const phaseIndices = new Set(
+    progress.filter((p: any) => p?.type === 'workflow_phase').map((p: any) => p.index),
+  );
+  const status = parsed.status ?? 'running';
+  const completedPhases = status === 'completed'
+    ? phases.length
+    : Math.max(0, phaseIndices.size - 1);
+
+  return {
+    runId: parsed.runId ?? '',
+    workflowName: parsed.workflowName ?? parsed.runId ?? '',
+    summary: parsed.summary ?? '',
+    status,
+    startTime: typeof parsed.startTime === 'number' ? parsed.startTime : 0,
+    durationMs: typeof parsed.durationMs === 'number' ? parsed.durationMs : undefined,
+    timestamp: parsed.timestamp ?? '',
+    agentCount: typeof parsed.agentCount === 'number' ? parsed.agentCount : 0,
+    totalTokens: typeof parsed.totalTokens === 'number' ? parsed.totalTokens : undefined,
+    totalToolCalls: typeof parsed.totalToolCalls === 'number' ? parsed.totalToolCalls : undefined,
+    defaultModel: parsed.defaultModel,
+    phases,
+    completedPhases,
+    projectDir,
+    projectName: resolveProjectName(projectDir, knownProjectDirs),
+    sessionId,
+    agents: [], // filled in by getWorkflows()
+    // detail-only
+    script: typeof parsed.script === 'string' ? parsed.script : undefined,
+    scriptPath: typeof parsed.scriptPath === 'string' ? parsed.scriptPath : undefined,
+    result: parsed.result,
+    logs: Array.isArray(parsed.logs) ? parsed.logs : [],
+  };
+}
+
+/** Scan session/workflows/wf_*.json run journals (mtime-gated, age-bounded). */
+async function scanWorkflowRuns(wfDir: string, projDir: string, sessionId: string): Promise<void> {
+  const files = await safeReaddir(wfDir);
+  for (const file of files) {
+    if (!file.startsWith('wf_') || !file.endsWith('.json')) continue;
+    const filePath = join(wfDir, file);
+    const fileStat = await safeFileStat(filePath);
+    if (!fileStat) continue;
+    if (Date.now() - fileStat.mtimeMs > MAX_FILE_AGE_MS) continue;
+    if (workflowFileMtimes.get(filePath) === fileStat.mtimeMs) continue; // unchanged
+    const raw = await safeReadFile(filePath);
+    if (!raw) continue;
+    try {
+      const parsed = JSON.parse(raw);
+      const run = parseWorkflowRun(parsed, projDir, sessionId);
+      if (run.runId) workflowRuns.set(run.runId, run);
+      workflowFileMtimes.set(filePath, fileStat.mtimeMs);
+    } catch {
+      // skip malformed journal
+    }
+  }
+}
+
+/** Scan session/subagents/workflows/wf_<runId>/agent-*.jsonl conversations. */
+async function scanWorkflowSubagents(wfRoot: string, projDir: string, parentSessionId: string): Promise<void> {
+  const runDirs = await safeReaddir(wfRoot);
+  for (const runDir of runDirs) {
+    if (!runDir.startsWith('wf_')) continue;
+    const runPath = join(wfRoot, runDir);
+    const files = await safeReaddir(runPath);
+    for (const file of files) {
+      if (!file.startsWith('agent-') || !file.endsWith('.jsonl')) continue;
+      const filePath = join(runPath, file);
+      const st = await safeFileStat(filePath);
+      if (!st || Date.now() - st.mtimeMs > MAX_FILE_AGE_MS) continue;
+      const hash = file.slice('agent-'.length, file.length - '.jsonl'.length);
+
+      // Resolve agentType from meta.json once per file
+      let agentType: string;
+      const cachedType = workflowAgentType.get(filePath);
+      if (cachedType !== undefined) {
+        agentType = cachedType;
+      } else {
+        agentType = '';
+        const metaRaw = await safeReadFile(join(runPath, `agent-${hash}.meta.json`));
+        if (metaRaw) {
+          try { agentType = JSON.parse(metaRaw).agentType ?? ''; } catch { /* ignore */ }
+        }
+        workflowAgentType.set(filePath, agentType);
+      }
+
+      const workflowName = workflowRuns.get(runDir)?.workflowName ?? runDir;
+      await readNewEntries(filePath, false, projDir, parentSessionId, {
+        runId: runDir,
+        workflowName,
+        agentType,
+        hash,
+      });
+    }
+  }
+}
+
+interface WorkflowCtx {
+  runId: string;
+  workflowName: string;
+  agentType: string;
+  hash: string;
+}
+
+async function readNewEntries(filePath: string, isSessionFile: boolean, projectDir?: string, parentSessionId?: string, workflowCtx?: WorkflowCtx): Promise<void> {
   const fileStat = await safeFileStat(filePath);
   if (!fileStat) return;
 
@@ -343,8 +469,17 @@ async function readNewEntries(filePath: string, isSessionFile: boolean, projectD
       let resolvedAgentId = parsed.agentId ?? '';
       let resolvedSlug = parsed.slug ?? '';
 
-      // Try to resolve subagent hash -> team member agentId
-      if (resolvedAgentId && parentSessionId) {
+      // Workflow sub-agent: namespace agentId by run, label by agentType.
+      // These agents don't belong to a team, so skip team-member matching.
+      if (workflowCtx) {
+        resolvedAgentId = `wf:${workflowCtx.runId}:${workflowCtx.hash}`;
+        resolvedSlug = workflowCtx.agentType || parsed.slug || workflowCtx.hash.slice(0, 8);
+        workflowAgentMeta.set(resolvedAgentId, {
+          runId: workflowCtx.runId,
+          workflowName: workflowCtx.workflowName,
+          agentType: workflowCtx.agentType,
+        });
+      } else if (resolvedAgentId && parentSessionId) {
         const cached = subagentToMember.get(filePath);
         if (cached) {
           // Successfully matched to a team member
@@ -620,11 +755,13 @@ function buildProjectOverviews(): ProjectOverview[] {
       const lastTs = data.entries.length > 0
         ? data.entries[data.entries.length - 1].timestamp
         : '';
+      const wfMeta = workflowAgentMeta.get(agentId);
       agents.push({
         agentId,
         slug: data.slug || agentId,
         entryCount: data.entries.length,
         lastTimestamp: lastTs,
+        ...(wfMeta ? { workflowRunId: wfMeta.runId, workflowName: wfMeta.workflowName } : {}),
       });
       if (lastTs > lastActivity) lastActivity = lastTs;
     }
@@ -694,7 +831,7 @@ export function getSnapshot(): FullSnapshot {
     }
   }
 
-  return { teams: teamOverviews, unmatchedAgents, agentActivity: activity, projects: buildProjectOverviews() };
+  return { teams: teamOverviews, unmatchedAgents, agentActivity: activity, projects: buildProjectOverviews(), workflows: getWorkflows() };
 }
 
 export function getLeanSnapshot(): FullSnapshot {
@@ -728,7 +865,7 @@ export function getLeanSnapshot(): FullSnapshot {
     }
   }
 
-  return { teams: teamOverviews, unmatchedAgents, projects: buildProjectOverviews() };
+  return { teams: teamOverviews, unmatchedAgents, projects: buildProjectOverviews(), workflows: getWorkflows() };
 }
 
 export function getAndClearNewEntries(): Map<string, AgentLogEntry[]> {
@@ -752,6 +889,57 @@ export function getAgentActivity(agentId: string, limit?: number, offset?: numbe
     return entries.slice(-limit);
   }
   return entries;
+}
+
+// --- Workflows query ---
+
+/** Build the live agent refs for each run from the workflow entries currently cached. */
+function buildWorkflowAgentsByRun(): Map<string, WorkflowAgentRef[]> {
+  const byRun = new Map<string, WorkflowAgentRef[]>();
+  for (const [agentId, meta] of workflowAgentMeta) {
+    const entries = agentEntries.get(agentId) ?? [];
+    const last = entries.length > 0 ? entries[entries.length - 1] : undefined;
+    const ref: WorkflowAgentRef = {
+      agentId,
+      agentType: meta.agentType || 'agent',
+      slug: last?.slug || meta.agentType || agentId,
+      entryCount: entries.length,
+      lastTimestamp: last?.timestamp ?? '',
+    };
+    let arr = byRun.get(meta.runId);
+    if (!arr) { arr = []; byRun.set(meta.runId, arr); }
+    arr.push(ref);
+  }
+  for (const arr of byRun.values()) {
+    arr.sort((a, b) => b.lastTimestamp.localeCompare(a.lastTimestamp));
+  }
+  return byRun;
+}
+
+/** Strip detail-only fields (script/result/logs) for snapshots. */
+function leanWorkflow(run: WorkflowRun, agents: WorkflowAgentRef[]): WorkflowRun {
+  const { script: _s, scriptPath: _sp, result: _r, logs: _l, ...lean } = run;
+  return { ...lean, agents };
+}
+
+/** Lean workflow runs (no script/result/logs) for the snapshot. */
+export function getWorkflows(): WorkflowRun[] {
+  const byRun = buildWorkflowAgentsByRun();
+  const runs: WorkflowRun[] = [];
+  for (const [runId, run] of workflowRuns) {
+    runs.push(leanWorkflow(run, byRun.get(runId) ?? []));
+  }
+  // Most recently started first
+  runs.sort((a, b) => b.startTime - a.startTime || b.timestamp.localeCompare(a.timestamp));
+  return runs;
+}
+
+/** Full workflow run (with script/result/logs) for the detail endpoint. */
+export function getWorkflowDetail(runId: string): WorkflowRun | null {
+  const run = workflowRuns.get(runId);
+  if (!run) return null;
+  const agents = buildWorkflowAgentsByRun().get(runId) ?? [];
+  return { ...run, agents };
 }
 
 export function getAgentSessions(agentId: string): AgentSession[] {
