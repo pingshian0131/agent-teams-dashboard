@@ -7,12 +7,14 @@ Real-time monitoring dashboard for [Claude Code](https://claude.ai/code) agent t
 ## Features
 
 - **Dual-Sidebar Navigation** — Three-panel layout: TeamsPanel (collapsible) → AgentsPanel → MainPanel
+- **Three Sidebar Modes** — Toggle the top-left switcher between **Teams**, **Convos**, and **Workflows**
 - **Responsive Design** — Full RWD: mobile (drawer + tab bar), tablet (auto-collapsed sidebar), desktop (three-column)
 - **Team Overview** — Live status cards with status dots, progress bars, and member counts
 - **Agent Sessions** — Per-agent session grouping with expandable timeline
 - **Agent Sort Toggle** — Switch between time-sorted (default) and team-grouped view in Conversations mode
 - **Session Resume** — Hover any session in Conversations mode → click `⎘` to copy `cd <path> && claude --resume <sessionId>` to clipboard
 - **Project Source Display** — Agent panel header shows the source project name; visible when navigating from search results or Conversations mode
+- **Workflows View** — Browse [workflow](https://code.claude.com/docs/en/workflows) runs grouped by project: phase progress, sub-agents (expandable to their conversations), token/tool-call stats, result, and the run's script. Workflow sub-agents also surface in **Convos**, marked with a ⚙ icon.
 - **Kanban Task Board** — Pending / In Progress / Completed columns
 - **Agent Activity Monitor** — Real-time messages and tool usage per agent
 - **WebSocket Streaming** — File system changes pushed to browser instantly

@@ -44,11 +44,20 @@ const removedTeams = new Map<string, { config: TeamConfig; removedAt: string }>(
 
 // --- Workflows ---
 // Full workflow run journals (includes script/result/logs), keyed by runId.
+// Only present once a run COMPLETES (Claude Code writes wf_*.json on completion).
 const workflowRuns = new Map<string, WorkflowRun>();
 const workflowFileMtimes = new Map<string, number>(); // wf_*.json filePath -> mtimeMs (skip re-parse if unchanged)
 const workflowAgentType = new Map<string, string>(); // workflow sub-agent jsonl filePath -> agentType (from meta.json)
 // workflow sub-agent agentId ("wf:<runId>:<hash>") -> run association
 const workflowAgentMeta = new Map<string, { runId: string; workflowName: string; agentType: string }>();
+// Parsed script meta (name/phases) keyed by runId — present from launch, lets us
+// label RUNNING workflows that have no completion journal yet. The script may live
+// under a different project dir than the sub-agents (same session reused across worktrees),
+// so we correlate by runId.
+const workflowScripts = new Map<string, { workflowName: string; phases: { title: string; detail?: string }[] }>();
+// Where a run's sub-agents live (project/session), keyed by runId — used to anchor a
+// running run to the project where its conversations actually appear.
+const workflowRunLocation = new Map<string, { projectDir: string; sessionId: string }>();
 
 export const onChange = new EventEmitter();
 
@@ -238,9 +247,13 @@ export async function scanAgentJsonl(): Promise<void> {
         await readNewEntries(join(subagentsDir, file), false, projDir, parentSessionId);
       }
 
-      // Workflow run journals: session/workflows/wf_*.json
+      // Workflow run journals: session/workflows/wf_*.json (completed runs only)
       // (scan runs first so sub-agents can resolve their workflowName)
       await scanWorkflowRuns(join(entryPath, 'workflows'), projDir, parentSessionId);
+
+      // Workflow scripts: session/workflows/scripts/<name>-wf_<runId>.js
+      // (present from launch — gives name/phases for RUNNING runs without a journal)
+      await scanWorkflowScripts(join(entryPath, 'workflows', 'scripts'));
 
       // Workflow sub-agent conversations: session/subagents/workflows/wf_<runId>/agent-*.jsonl
       await scanWorkflowSubagents(join(subagentsDir, 'workflows'), projDir, parentSessionId);
@@ -311,6 +324,42 @@ async function scanWorkflowRuns(wfDir: string, projDir: string, sessionId: strin
   }
 }
 
+/** Best-effort parse of `export const meta = { name, phases:[{title}] }` from a workflow script. */
+function parseWorkflowScriptMeta(src: string): { workflowName: string; phases: { title: string; detail?: string }[] } {
+  let workflowName = '';
+  const nameMatch = src.match(/name:\s*['"]([^'"]+)['"]/);
+  if (nameMatch) workflowName = nameMatch[1];
+
+  const phases: { title: string; detail?: string }[] = [];
+  const phasesMatch = src.match(/phases:\s*\[([\s\S]*?)\]/);
+  if (phasesMatch) {
+    const titleRe = /title:\s*['"]([^'"]+)['"]/g;
+    let m: RegExpExecArray | null;
+    while ((m = titleRe.exec(phasesMatch[1])) !== null) {
+      phases.push({ title: m[1] });
+    }
+  }
+  return { workflowName, phases };
+}
+
+/** Scan session/workflows/scripts/*-wf_<runId>.js to learn name/phases of (possibly running) runs. */
+async function scanWorkflowScripts(scriptsDir: string): Promise<void> {
+  const files = await safeReaddir(scriptsDir);
+  for (const file of files) {
+    if (!file.endsWith('.js')) continue;
+    const m = file.match(/(wf_[A-Za-z0-9-]+)\.js$/);
+    if (!m) continue;
+    const runId = m[1];
+    if (workflowScripts.has(runId)) continue; // parse once per run
+    const filePath = join(scriptsDir, file);
+    const st = await safeFileStat(filePath);
+    if (!st || Date.now() - st.mtimeMs > MAX_FILE_AGE_MS) continue;
+    const src = await safeReadFile(filePath);
+    if (!src) continue;
+    workflowScripts.set(runId, parseWorkflowScriptMeta(src));
+  }
+}
+
 /** Scan session/subagents/workflows/wf_<runId>/agent-*.jsonl conversations. */
 async function scanWorkflowSubagents(wfRoot: string, projDir: string, parentSessionId: string): Promise<void> {
   const runDirs = await safeReaddir(wfRoot);
@@ -318,6 +367,10 @@ async function scanWorkflowSubagents(wfRoot: string, projDir: string, parentSess
     if (!runDir.startsWith('wf_')) continue;
     const runPath = join(wfRoot, runDir);
     const files = await safeReaddir(runPath);
+    // Anchor this run to where its sub-agents live (the project shown in Convos).
+    if (files.some((f) => f.startsWith('agent-') && f.endsWith('.jsonl'))) {
+      workflowRunLocation.set(runDir, { projectDir: projDir, sessionId: parentSessionId });
+    }
     for (const file of files) {
       if (!file.startsWith('agent-') || !file.endsWith('.jsonl')) continue;
       const filePath = join(runPath, file);
@@ -922,24 +975,67 @@ function leanWorkflow(run: WorkflowRun, agents: WorkflowAgentRef[]): WorkflowRun
   return { ...lean, agents };
 }
 
-/** Lean workflow runs (no script/result/logs) for the snapshot. */
+/** Synthesize a `running` WorkflowRun from live data (script meta + sub-agents) — used
+ *  for runs that have launched but not yet written a completion journal. */
+function buildRunningWorkflow(runId: string, agents: WorkflowAgentRef[]): WorkflowRun | null {
+  const script = workflowScripts.get(runId);
+  const loc = workflowRunLocation.get(runId);
+  if (!loc) return null; // no sub-agents anchored → nothing meaningful to show
+  const lastTs = agents.reduce((max, a) => (a.lastTimestamp > max ? a.lastTimestamp : max), '');
+  const startTime = lastTs ? new Date(lastTs).getTime() : 0;
+  return {
+    runId,
+    workflowName: script?.workflowName || runId,
+    summary: '',
+    status: 'running',
+    startTime: Number.isNaN(startTime) ? 0 : startTime,
+    timestamp: lastTs,
+    agentCount: agents.length,
+    phases: script?.phases ?? [],
+    completedPhases: 0,
+    projectDir: loc.projectDir,
+    projectName: resolveProjectName(loc.projectDir, knownProjectDirs),
+    sessionId: loc.sessionId,
+    agents,
+  };
+}
+
+/** Lean workflow runs (no script/result/logs) for the snapshot — completed + running. */
 export function getWorkflows(): WorkflowRun[] {
   const byRun = buildWorkflowAgentsByRun();
   const runs: WorkflowRun[] = [];
+  const seen = new Set<string>();
+
+  // Completed runs (authoritative journal)
   for (const [runId, run] of workflowRuns) {
+    seen.add(runId);
     runs.push(leanWorkflow(run, byRun.get(runId) ?? []));
   }
-  // Most recently started first
-  runs.sort((a, b) => b.startTime - a.startTime || b.timestamp.localeCompare(a.timestamp));
+
+  // Running runs: have live sub-agents/script but no completion journal yet
+  const liveRunIds = new Set<string>([...workflowRunLocation.keys(), ...workflowScripts.keys()]);
+  for (const runId of liveRunIds) {
+    if (seen.has(runId)) continue;
+    const running = buildRunningWorkflow(runId, byRun.get(runId) ?? []);
+    if (running) runs.push(running);
+  }
+
+  // Running first, then most recent activity first
+  runs.sort((a, b) => {
+    const ar = a.status === 'running' ? 1 : 0;
+    const br = b.status === 'running' ? 1 : 0;
+    if (ar !== br) return br - ar;
+    return b.timestamp.localeCompare(a.timestamp) || b.startTime - a.startTime;
+  });
   return runs;
 }
 
-/** Full workflow run (with script/result/logs) for the detail endpoint. */
+/** Full workflow run (with script/result/logs) for the detail endpoint; falls back to a running run. */
 export function getWorkflowDetail(runId: string): WorkflowRun | null {
-  const run = workflowRuns.get(runId);
-  if (!run) return null;
   const agents = buildWorkflowAgentsByRun().get(runId) ?? [];
-  return { ...run, agents };
+  const run = workflowRuns.get(runId);
+  if (run) return { ...run, agents };
+  return buildRunningWorkflow(runId, agents);
 }
 
 export function getAgentSessions(agentId: string): AgentSession[] {
